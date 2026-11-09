@@ -3,8 +3,11 @@ import * as dz from './deezer.js';
 import {
   AC, BANDS, BAND_LABELS, BAND_NAMES, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
   responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F,
-  LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep, genreRef
+  LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep, genreRef, specsResponseDb
 } from './dsp.js';
+import { medianShift, shiftAt, ageLift, ageSummary, ISO_F, AGE_MIN, AGE_MAX, SEXES } from './hearing.js';
+import * as autoeq from './autoeq.js';
+import { renderCurveChart, fText } from './curves.js';
 import { makeDemo } from './demo.js';
 import { FORMATS, buildExport, formatForLayout } from './exports.js';
 import { BAND_INFO, TONE_INFO, FIXES, audibility } from './cheats.js';
@@ -29,7 +32,7 @@ const fmtTime = (s, tenths = false) => {
   const m = Math.floor(s / 60), r = s - m * 60;
   return m + ':' + (tenths ? r.toFixed(1).padStart(4, '0') : String(Math.floor(r)).padStart(2, '0'));
 };
-const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+const sgn = (v, d = 1) => { const a = Math.abs(v).toFixed(d); return (+a === 0 ? '' : v > 0 ? '+' : '−') + a; };
 const dbText = (v) => sgn(v, Number.isInteger(v) ? 0 : 1) + ' dB';
 // hz(i) names an analysis octave band (32 Hz … 16 kHz); bandHz() names a band of the current layout.
 const hz = (i) => (BAND_LABELS[i].includes('k') ? BAND_LABELS[i].replace('k', ' kHz') : BAND_LABELS[i] + ' Hz');
@@ -114,6 +117,57 @@ const state = {
   art: { token: 0, running: false, done: 0, total: 0, note: '' }
 };
 if (!FORMATS.some((f) => f.id === state.fmt)) state.fmt = 'apple';
+
+/* Your setup: headphone correction (AutoEq) and age compensation. Both play under settings A and B
+   and go into exports. Saved in this browser only. */
+const validSpec = (x) => x && ['peaking', 'lowshelf', 'highshelf'].includes(x.type) && [x.f, x.gain, x.q].every((v) => typeof v === 'number' && isFinite(v));
+const validHp = (h) => h && typeof h.name === 'string' && typeof h.key === 'string' && Array.isArray(h.specs) && h.specs.length > 0 && h.specs.length <= 20 && h.specs.every(validSpec);
+const setup0 = store.get('setup', {}) || {};
+state.setup = {
+  hp: validHp(setup0.hp) ? setup0.hp : null,
+  hpOn: setup0.hpOn !== false,
+  age: Number.isInteger(setup0.age) && setup0.age >= AGE_MIN && setup0.age <= 110 ? setup0.age : null,
+  sex: setup0.sex in SEXES ? setup0.sex : 'any',
+  ageAmt: ['off', 'gentle', 'strong'].includes(setup0.ageAmt) ? setup0.ageAmt : 'off'
+};
+state.exSetup = store.get('exSetup', true) !== false;
+state.layers.setup = state.layers.setup !== false;
+const saveSetup = () => store.set('setup', { hp: state.setup.hp, hpOn: state.setup.hpOn, age: state.setup.age, sex: state.setup.sex, ageAmt: state.setup.ageAmt });
+const hpSpecs = () => (state.setup.hp && state.setup.hpOn ? state.setup.hp.specs : []);
+let ageCache = { key: '', specs: [] };
+/* Age compensation is a smooth treble lift, built from four stacked high shelves (1, 2, 4 and
+   8 kHz) and a broad dip at 16 kHz where it eases off. That follows the curve within about
+   0.4 dB, where octave-spaced peaks would ripple by 1–2 dB. */
+const AGE_L = { id: 'age', bands: [1000, 2000, 4000, 8000].map((f) => ({ f, type: 'highshelf' })).concat([{ f: 16000, type: 'peaking', q: 0.7 }]) };
+function ageSpecs() {
+  const S = state.setup;
+  if (!S.age || S.ageAmt === 'off') return [];
+  const key = S.age + ':' + S.sex + ':' + S.ageAmt;
+  if (ageCache.key !== key) {
+    const g = fitLayout(AGE_L, ageLift(S.age, S.sex, S.ageAmt, FIT_F, GUIDE), RANGE, 0.01).map((v, i) => (AGE_L.bands[i].type === 'highshelf' ? Math.max(0, v) : v));
+    ageCache = { key, specs: AGE_L.bands.map((b, i) => ({ type: b.type, f: b.f, q: b.q || Math.SQRT1_2, gain: Math.round(g[i] * 100) / 100 })).filter((x) => Math.abs(x.gain) >= 0.05) };
+  }
+  return ageCache.specs;
+}
+const setupSpecs = () => hpSpecs().concat(ageSpecs());
+const setupOn = () => setupSpecs().length > 0;
+let setupCache = { key: null, db: null };
+/** Your setup's response at CURVE_F, or null when it's off. */
+function setupDb() {
+  const sp = setupSpecs();
+  if (!sp.length) return null;
+  const key = JSON.stringify(sp);
+  if (setupCache.key !== key) setupCache = { key, db: specsResponseDb(sp, CURVE_F) };
+  return setupCache.db;
+}
+/** What a setting's export should include from your setup ("the correction for X and gentle age compensation"). */
+function exportExtra() {
+  if (!state.exSetup || !setupOn()) return null;
+  const S = state.setup, parts = [], specs = [];
+  if (hpSpecs().length && state.fmt !== 'tone') { parts.push('the correction for ' + S.hp.name); specs.push(...hpSpecs()); }
+  if (ageSpecs().length) { parts.push((S.ageAmt === 'strong' ? 'stronger' : 'gentle') + ' age compensation'); specs.push(...ageSpecs()); }
+  return specs.length ? { specs, text: parts.join(' and '), hp: specs.length > ageSpecs().length } : null;
+}
 // Each picked artist keeps its chart colour (slots 1–5) even when others are removed.
 state.picks.forEach((p) => { if (!(p.c >= 1 && p.c <= 5)) p.c = 0; });
 state.picks.forEach((p) => { if (!p.c) p.c = [1, 2, 3, 4, 5].find((c) => !state.picks.some((q) => q.c === c)); });
@@ -123,24 +177,36 @@ const limitNow = () => Math.min(state.layout.max, state.limit);
 const saveSlots = () => store.set('slots', { layout: state.layout.id, A: state.slots.A, B: state.slots.B });
 
 /* ---------- Audio graph ---------- */
-let ctx = null, voice = null, eqIn = null, filters = [], comp = null, limiter = null, analyser = null, master = null, specBuf = null;
+let ctx = null, voice = null, eqIn = null, filters = [], setupNodes = [], comp = null, limiter = null, analyser = null, master = null, specBuf = null;
 
-/** (Re)build the EQ filters for the current band layout between eqIn and comp. */
+/** (Re)build the filters between eqIn and comp: your setup first, then the selected setting's bands. */
 function buildChain() {
   if (!ctx) return;
   eqIn.disconnect();
-  filters.forEach((f) => { try { f.disconnect(); } catch (e) {} });
-  const g = gainsOf(state.active);
-  filters = state.layout.bands.map((b, i) => {
+  setupNodes.concat(filters).forEach((f) => { try { f.disconnect(); } catch (e) {} });
+  const biquad = (type, freq, q, gain) => {
     const f = ctx.createBiquadFilter();
-    f.type = b.type; f.frequency.value = b.f;
-    if (b.type === 'peaking') f.Q.value = b.q;
-    f.gain.value = g[i];
+    f.type = type; f.frequency.value = freq;
+    if (type === 'peaking') f.Q.value = q;
+    f.gain.value = gain;
     return f;
-  });
-  eqIn.connect(filters[0]);
-  for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
-  filters[filters.length - 1].connect(comp);
+  };
+  setupNodes = setupSpecs().map((x) => biquad(x.type, x.f, x.q, x.gain));
+  const g = gainsOf(state.active);
+  filters = state.layout.bands.map((b, i) => biquad(b.type, b.f, b.q, g[i]));
+  const chain = setupNodes.concat(filters);
+  eqIn.connect(chain[0]);
+  for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
+  chain[chain.length - 1].connect(comp);
+}
+/** Rebuild the filters without a click: fade out, swap, fade back in. */
+let rebuildTimer = 0;
+function rebuildChain() {
+  if (!ctx) return;
+  if (ctx.state !== 'running' || !state.playing) { buildChain(); rampTo(comp.gain, compFor(state.active)); return; }
+  clearTimeout(rebuildTimer);
+  rampTo(eqIn.gain, 0);
+  rebuildTimer = setTimeout(() => { buildChain(); rampTo(comp.gain, compFor(state.active)); rampTo(eqIn.gain, 1); }, 60);
 }
 
 function ensureCtx() {
@@ -172,7 +238,8 @@ function rampTo(param, v) {
 function applyLive() {
   if (!ctx) return;
   const g = gainsOf(state.active);
-  filters.forEach((f, i) => rampTo(f.gain, g[i]));
+  // While a rebuild is pending the old filters may belong to another layout; the rebuild reads the new gains.
+  if (filters.length === g.length) filters.forEach((f, i) => rampTo(f.gain, g[i]));
   rampTo(comp.gain, compFor(state.active));
 }
 
@@ -191,9 +258,9 @@ function curveOf(s) {
 }
 function compFor(s) {
   if (!state.match) return 1;
-  const w = trackWeights(), db = curveOf(s);
+  const w = trackWeights(), db = curveOf(s), su = setupDb();
   let num = 0, den = 0;
-  for (let i = 0; i < N_CURVE; i++) { num += w[i]; den += w[i] * Math.pow(10, db[i] / 10); }
+  for (let i = 0; i < N_CURVE; i++) { num += w[i]; den += w[i] * Math.pow(10, (db[i] + (su ? su[i] : 0)) / 10); }
   const c = Math.sqrt(num / den);
   return isFinite(c) ? Math.min(4, Math.max(0.25, c)) : 1;
 }
@@ -710,7 +777,9 @@ function renderPlay() {
 function renderMini() {
   const r = document.querySelector('.transport').getBoundingClientRect();
   const transportVisible = r.bottom > 0 && r.top < window.innerHeight;
-  const show = !!state.track && !transportVisible;
+  // Stay out of the way while typing (search suggestions and the on-screen keyboard need the space).
+  const a = document.activeElement, typing = !!a && a.tagName === 'INPUT' && ['search', 'text', 'number'].includes(a.type);
+  const show = !!state.track && !transportVisible && !typing;
   $('mini').classList.toggle('show', show);
   document.body.classList.toggle('has-mini', show);
 }
@@ -802,7 +871,7 @@ function setLayout(id) {
   state.fmt = formatForLayout(to.id);
   store.set('fmt', state.fmt);
   syncTabs();
-  buildChain(); buildFaders(); buildDots();
+  rebuildChain(); buildFaders(); buildDots();
   renderLayoutUi(); renderFitAvailability();
   afterSlotChange();
   $('layoutMsg').textContent = restore
@@ -839,6 +908,7 @@ function renderLayoutUi() {
   $('allow12Note').textContent = can12
     ? 'Earprint stops at ±10 dB unless you turn this on. Most good settings stay within ±6 dB, marked on the faders.'
     : 'The ' + L.title + ' layout stops at ±10 dB, like the devices that use it. Most good settings stay within ±6 dB, marked on the faders.';
+  renderSetupTiles();
 }
 const LAYOUT_NOTES = {
   b10: 'Ten one-octave bands from 32 Hz to 16 kHz, the most detailed layout. Choose the layout of the equaliser you’ll actually use, so what you hear here is what you can set there.',
@@ -971,6 +1041,10 @@ function fillBandInfo(box, i, sample) {
     box.append(' This song: ' + dbText(sample ? -88.5 : roundStep(vsTypical(fp.rel, ref)[k], 0.5)) + ' against a typical ' + ref.noun + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
   }
   if (!state.blind) box.append(' Setting ' + (sample ? 'W' : state.active) + ': ' + dbText(sample ? -88.5 : gainsOf(state.active)[i]) + '.');
+  if (setupOn() && !state.blind) {
+    const v = sample ? -88.5 : roundStep(specsResponseDb(setupSpecs(), [b.f])[0], 0.5);
+    box.append(' Your setup: ' + dbText(v) + '.');
+  }
 }
 /**
  * Keep the band info box as tall as its longest text for this layout and width, so the faders
@@ -979,7 +1053,7 @@ function fillBandInfo(box, i, sample) {
 let bandInfoKey = '';
 function sizeBandInfo(box, force) {
   const w = box.clientWidth, fp = state.track && state.track.fp;
-  const key = [state.layout.id, w, fp ? refNow().noun : '', state.blind ? 1 : 0].join('|');
+  const key = [state.layout.id, w, fp ? refNow().noun : '', state.blind ? 1 : 0, setupOn() ? 1 : 0].join('|');
   if (!w || (key === bandInfoKey && !force)) return;
   bandInfoKey = key;
   const m = box.cloneNode(false);
@@ -1185,8 +1259,9 @@ function renderRef() {
   const g = state.track && state.track.genre, ref = refNow();
   const gl = $('refGenre');
   gl.disabled = !g;
-  gl.checked = state.ref === 'genre';
-  $('refAll').checked = state.ref === 'all';
+  // Without a known genre the song is compared with all music, so show that, but keep the saved choice.
+  gl.checked = state.ref === 'genre' && !!g;
+  $('refAll').checked = state.ref === 'all' || !g;
   $('refGenreName').textContent = g ? g.name : 'Its genre';
   $('refGenreLabel').title = g ? 'Compare with ' + g.songs + ' popular ' + g.noun + 's' : 'Earprint doesn’t know this song’s genre, or hasn’t measured it yet';
   $('fpRefName').textContent = ref.noun;
@@ -1400,7 +1475,15 @@ function renderExport() {
   $('exHidden').hidden = !blind;
   $('exSlot').textContent = blind ? '' : state.active;
   if (blind) return;
-  const ex = buildExport(state.fmt, gainsOf(state.active), state.slots[state.active].name, state.layout, state.step);
+  const extra = exportExtra(), on = setupOn();
+  $('exSetupWrap').hidden = !on;
+  $('exSetup').checked = state.exSetup;
+  if (on) {
+    const S = state.setup, hpOnly = hpSpecs().length && !ageSpecs().length;
+    $('exSetupText').textContent = 'Include your ' + (hpSpecs().length && ageSpecs().length ? 'headphone correction and age compensation' : hpOnly ? 'headphone correction' : 'age compensation') +
+      (state.fmt === 'tone' && hpSpecs().length ? (hpOnly ? ' (not for speakers)' : ' (age only for speakers)') : '');
+  }
+  const ex = buildExport(state.fmt, gainsOf(state.active), state.slots[state.active].name, state.layout, state.step, extra);
   currentExport = ex;
   $('outMatch').textContent = ex.match || '';
   $('outMatch').hidden = !ex.match;
@@ -1411,6 +1494,206 @@ function renderExport() {
   $('outNote').textContent = ex.note;
   $('copyOut').hidden = !ex.copy;
   $('dlOut').hidden = !ex.download;
+}
+
+/* ---------- Your setup: equaliser, headphones and hearing ---------- */
+const SETUP_IDS = { eq: ['tileEq', 'setEq'], hp: ['tileHp', 'setHp'], age: ['tileAge', 'setAge'] };
+function openSetup(which) {
+  Object.entries(SETUP_IDS).forEach(([k, [tile, body]]) => {
+    const on = k === which && $(body).hidden;
+    $(tile).setAttribute('aria-expanded', String(on));
+    $(body).hidden = !on;
+  });
+  if (which === 'hp' && !$('setHp').hidden) { ensureHpIndex(); renderHp(); }
+  if (which === 'age' && !$('setAge').hidden) renderAge();
+}
+function renderSetupTiles() {
+  const L = state.layout, S = state.setup;
+  $('tileEqV').textContent = L.title + (state.step === 1 ? ' · whole dB' : '');
+  $('tileEqS').textContent = L.devices;
+  $('tileHpV').textContent = S.hp ? S.hp.name : 'Not chosen';
+  $('tileHpS').textContent = S.hp ? (S.hpOn ? 'Correction on' : 'Correction off') : 'Correct for your exact model';
+  $('tileHp').classList.toggle('on', !!(S.hp && S.hpOn));
+  $('tileAgeV').textContent = S.age ? 'Age ' + S.age : 'Not set';
+  $('tileAgeS').textContent = S.age ? (S.ageAmt === 'off' ? 'Compensation off' : (S.ageAmt === 'strong' ? 'Stronger' : 'Gentle') + ' compensation') : 'Optional lift for your age';
+  $('tileAge').classList.toggle('on', ageSpecs().length > 0);
+  $('lgSetupWrap').hidden = !setupOn();
+}
+function afterSetupChange() {
+  saveSetup();
+  setupCache.key = null;
+  rebuildChain();
+  renderSetupTiles(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
+}
+
+/* Headphones */
+const hpEl = $('hpQ'), hpList = $('hpList');
+const hp = { d: null, items: [], total: 0, active: -1, timer: 0, loading: null };
+function ensureHpIndex() {
+  if (hp.d || hp.loading) return hp.loading;
+  $('hpStatus').textContent = 'Loading the list of models…';
+  hp.loading = autoeq.loadIndex().then((d) => {
+    hp.d = d;
+    $('hpStatus').innerHTML = '';
+    $('hpStatus').append(d.count.toLocaleString('en-AU') + ' models, measured by ' + d.sources.length + ' independent reviewers and labs and corrected by ', hpLink(), '.');
+    if (hpEl.value.trim() && document.activeElement === hpEl) runHpSearch();
+    return d;
+  }).catch(() => {
+    hp.loading = null;
+    $('hpStatus').textContent = 'The list of models didn’t load. Check your connection, then click the search box to try again.';
+  });
+  return hp.loading;
+}
+const hpLink = () => { const a = el('a', null, 'AutoEq'); a.href = 'https://autoeq.app'; a.target = '_blank'; a.rel = 'noopener'; return a; };
+function closeHp() {
+  hpList.hidden = true;
+  hpEl.setAttribute('aria-expanded', 'false');
+  hpEl.removeAttribute('aria-activedescendant');
+  hp.active = -1;
+}
+function setHpActive(i) {
+  if (hp.active >= 0) { const o = $('hp-' + hp.active); if (o) o.setAttribute('aria-selected', 'false'); }
+  hp.active = i;
+  const o = $('hp-' + i);
+  if (o) { o.setAttribute('aria-selected', 'true'); hpEl.setAttribute('aria-activedescendant', o.id); o.scrollIntoView({ block: 'nearest' }); }
+}
+function runHpSearch() {
+  const q = hpEl.value.trim();
+  if (!hp.d || q.length < 2) { closeHp(); return; }
+  const { items, total } = autoeq.search(hp.d, q, 40);
+  hp.items = items; hp.total = total; hp.active = -1;
+  hpList.textContent = '';
+  hpEl.removeAttribute('aria-activedescendant');
+  if (!items.length) {
+    const p = el('p', 'sg-empty', 'No model matches “' + q + '”. Try just the brand, or only the model number. ');
+    const a = el('a', null, 'AutoEq’s own site');
+    a.href = 'https://autoeq.app'; a.target = '_blank'; a.rel = 'noopener';
+    p.append('Not listed? ', a, ' has a few more measurements.');
+    hpList.append(p);
+  }
+  items.forEach((it, i) => {
+    const o = el('div', 'sg-opt hp');
+    o.id = 'hp-' + i;
+    o.setAttribute('role', 'option');
+    o.setAttribute('aria-selected', 'false');
+    const m = el('div', 'sg-main');
+    m.append(el('b', null, it.name), el('small', null, autoeq.formText(it.form) + ' · measured by ' + it.source));
+    o.append(m, el('span', 'sg-side', state.setup.hp && state.setup.hp.key === it.key ? 'Chosen' : ''));
+    o.addEventListener('mousedown', (e) => e.preventDefault());
+    o.addEventListener('click', () => chooseHp(i));
+    o.addEventListener('mousemove', () => { if (hp.active !== i) setHpActive(i); });
+    hpList.append(o);
+  });
+  if (total > items.length) hpList.append(el('p', 'sg-more', 'Showing ' + items.length + ' of ' + total + ' matches. Type more of the name to narrow it down.'));
+  hpList.hidden = false;
+  hpEl.setAttribute('aria-expanded', 'true');
+}
+async function chooseHp(i) {
+  const it = hp.items[i];
+  if (!it) return;
+  closeHp();
+  $('hpStatus').textContent = 'Loading the correction for ' + it.name + '…';
+  try {
+    const c = await autoeq.correction(hp.d, it);
+    state.setup.hp = { key: it.key, name: it.name, source: it.source, form: it.form, target: it.target, preamp: c.preamp, specs: c.specs };
+    state.setup.hpOn = true;
+    hpEl.value = '';
+    ensureCtx();
+    afterSetupChange();
+    renderHp();
+    $('hpStatus').textContent = 'Correction for ' + it.name + ' is on. It plays under both settings and goes into your exports.';
+  } catch (e) {
+    $('hpStatus').textContent = (e.message || 'That correction didn’t load.') + ' Try again.';
+  }
+}
+function renderHp() {
+  const h = state.setup.hp;
+  $('hpCard').hidden = !h;
+  if (!h) return;
+  $('hpName').textContent = h.name;
+  $('hpMeta').textContent = autoeq.formText(h.form) + ' · measured by ' + h.source + ' · tuned towards ' + autoeq.targetText(h.target) + '.';
+  $('hpOn').checked = state.setup.hpOn;
+  $('hpNote').textContent = state.setup.hpOn
+    ? 'Listen with these headphones while it’s on. Turn it off for anything else: the lab can’t tell what you’re wearing.'
+    : 'Off. Songs play without the correction, and exports leave it out.';
+  renderHpChart();
+}
+function renderHpChart() {
+  const h = state.setup.hp, box = $('hpChart');
+  if (!h || $('setHp').hidden) return;
+  const db = specsResponseDb(h.specs, CURVE_F);
+  const peak = Math.max(6, ...db.filter((_, i) => CURVE_F[i] >= 20 && CURVE_F[i] <= 20000).map(Math.abs));
+  const lim = Math.min(18, Math.ceil(peak / 6) * 6);
+  const snap = Array.from({ length: 31 }, (_, k) => 20 * Math.pow(2, k / 3)).filter((f) => f <= 20000);
+  const at = specsResponseDb(h.specs, snap);
+  const ticks = [];
+  for (let v = lim; v >= -lim; v -= 6) ticks.push(v);
+  renderCurveChart(box, {
+    height: 150, fMin: 20, fMax: 20000,
+    xTicks: box.clientWidth < 400 ? [[32, '32'], [125, '125'], [500, '500'], [2000, '2k'], [8000, '8k']] : [[32, '32'], [125, '125'], [500, '500'], [2000, '2k'], [8000, '8k'], [16000, '16k']],
+    yMin: -lim, yMax: lim, yTicks: ticks,
+    series: [{ label: 'Correction', freqs: Array.from(CURVE_F), values: db, cls: 'hp', area: true }],
+    snap, tipRows: (k) => [['hp', 'Correction', sgn(at[k]) + ' dB']],
+    aria: 'The correction for ' + h.name + ': how much each part of the range is turned up or down, from 20 Hz to 20 kHz'
+  });
+}
+
+/* Hearing and age */
+function setAge(v) {
+  const S = state.setup, first = !S.age;
+  S.age = v;
+  if (v && first && S.ageAmt === 'off') S.ageAmt = 'gentle';
+  syncAgeRadios();
+  afterSetupChange();
+  renderAge();
+}
+function syncAgeRadios() {
+  document.querySelectorAll('input[name="ageSex"]').forEach((r) => { r.checked = r.value === state.setup.sex; });
+  document.querySelectorAll('input[name="ageAmt"]').forEach((r) => { r.checked = r.value === state.setup.ageAmt; r.disabled = !state.setup.age && r.value !== 'off'; });
+}
+function renderAge() {
+  const S = state.setup, box = $('ageChart');
+  if (document.activeElement !== $('ageIn')) $('ageIn').value = S.age || '';
+  syncAgeRadios();
+  if (!S.age) {
+    $('ageText').textContent = 'Enter your age to see how hearing typically changes by then, and to turn on a gentle treble lift for it.';
+    $('ageKey').hidden = true;
+    box.textContent = '';
+    return;
+  }
+  const sum = ageSummary(S.age, S.sex), who = S.sex === 'any' ? '' : ' for ' + SEXES[S.sex];
+  const sh = medianShift(S.age, S.sex);
+  const snap = [125, 250, 500, 1000, 2000, 3000, 4000, 6000, 8000, 12000, 16000];
+  const lift = S.ageAmt === 'off' ? null : specsResponseDb(ageSpecs(), snap);
+  const maxLift = lift ? Math.max(0, ...lift) : 0;
+  let t = (sum.clamped ? 'The standard stops at 80, so these are the figures for 80. ' : '') +
+    'At ' + sum.age + ', typical hearing' + who + ' is about ' + sum.k4 + ' dB less sensitive at 4 kHz and ' + sum.k8 + ' dB at 8 kHz than at 18, and within ' + Math.max(1, sum.low) + ' dB below 1 kHz. ';
+  if (S.ageAmt === 'off') t += 'Compensation is off.';
+  else if (maxLift < 0.75) t += 'That’s too small a change to need a lift, so compensation does almost nothing at this age.';
+  else t += (S.ageAmt === 'strong' ? 'Stronger compensation gives back half' : 'Gentle compensation gives back a third') + ' of the difference above 1 kHz: up to +' + (Math.round(maxLift * 2) / 2) + ' dB in the treble. Turn it off and on while a song plays to hear it.';
+  $('ageText').textContent = t;
+  $('ageKey').hidden = false;
+  $('ageKeyLoss').textContent = 'Typical hearing at ' + sum.age + ', compared with 18';
+  $('ageKeyLift').parentElement.hidden = !lift;
+  $('ageKeyLift').textContent = 'Earprint’s lift (' + (S.ageAmt === 'strong' ? 'stronger' : 'gentle') + ')';
+  const lo = Math.min(-20, -Math.ceil(Math.max(...sh) / 10) * 10);
+  const ticks = [];
+  for (let v = 10; v >= lo; v -= 10) ticks.push(v);
+  const series = [{ label: 'Hearing', freqs: ISO_F, values: sh.map((v) => -v), cls: 'loss', area: true }];
+  const liftF = Array.from(CURVE_F).filter((f) => f >= 32 && f <= 16000);
+  if (lift) series.push({ label: 'Lift', freqs: liftF, values: specsResponseDb(ageSpecs(), liftF), cls: 'hp' });
+  renderCurveChart(box, {
+    height: 170, fMin: 32, fMax: 16000,
+    xTicks: [[63, '63'], [250, '250'], [1000, '1k'], [4000, '4k'], [16000, '16k']],
+    yMin: lo, yMax: 10, yTicks: ticks,
+    series, snap,
+    tipRows: (k, f) => {
+      const rows = [['loss', 'Hearing at ' + sum.age, f <= 8000 ? sgn(-shiftAt(sh, f), 0) + ' dB' : 'not covered']];
+      if (lift) rows.push(['hp', 'Earprint’s lift', sgn(Math.max(0, lift[k])) + ' dB']);
+      return rows;
+    },
+    aria: 'Typical hearing at ' + sum.age + ' compared with age 18, from 125 Hz to 8 kHz' + (lift ? ', and Earprint’s lift' : '')
+  });
 }
 
 /* ---------- Frequency scope ----------
@@ -1426,7 +1709,7 @@ let raf = 0, drawQueued = false, peaks = null, lastVis = null, powBuf = null;
 const colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  ['--a', '--b', '--spec', '--muted', '--line', '--ink', '--well', '--panel'].forEach((k) => { colors[k] = cs.getPropertyValue(k).trim(); });
+  ['--a', '--b', '--spec', '--muted', '--line', '--ink', '--well', '--panel', '--hp'].forEach((k) => { colors[k] = cs.getPropertyValue(k).trim(); });
   waveBase = null;
   scheduleDraw();
   drawWave();
@@ -1578,6 +1861,15 @@ function drawScope(live) {
       g2.fillStyle = on ? col : rgba(col, 0.75);
       g2.fillText(s, (on ? 5 : 17) * dpr, G.Y(db[Math.round(N_CURVE * 0.02)]) - 7 * dpr);
     });
+  }
+
+  // Your setup (headphone correction and age compensation), dashed; the legend names it.
+  const su = setupDb();
+  if (su && state.layers.setup && !blind) {
+    line(G, (i) => CURVE_F[i], su, N_CURVE);
+    g2.setLineDash([7 * dpr, 4 * dpr]);
+    g2.strokeStyle = colors['--hp']; g2.lineWidth = 2 * dpr; g2.lineJoin = 'round'; g2.stroke();
+    g2.setLineDash([]);
   }
   g2.restore();
 
@@ -1928,6 +2220,46 @@ function init() {
   document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => endBlind(+b.dataset.pick)));
 
   document.querySelectorAll('input[name="ref"]').forEach((r) => r.addEventListener('change', () => { if (r.checked) setRef(r.value); }));
+
+  // Your setup
+  Object.entries(SETUP_IDS).forEach(([k, [tile]]) => $(tile).addEventListener('click', () => openSetup(k)));
+  hpEl.addEventListener('focus', () => { ensureHpIndex(); if (hp.items.length && hpEl.value.trim().length >= 2) { hpList.hidden = false; hpEl.setAttribute('aria-expanded', 'true'); } });
+  hpEl.addEventListener('input', () => { clearTimeout(hp.timer); hp.timer = setTimeout(runHpSearch, 120); });
+  hpEl.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== hpEl) closeHp(); }, 150));
+  hpEl.addEventListener('keydown', (e) => {
+    const n = hp.items.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!n) return;
+      e.preventDefault();
+      if (hpList.hidden) { hpList.hidden = false; hpEl.setAttribute('aria-expanded', 'true'); }
+      const down = e.key === 'ArrowDown';
+      setHpActive(hp.active < 0 ? (down ? 0 : n - 1) : (hp.active + (down ? 1 : -1) + n) % n);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!hpList.hidden && n) chooseHp(hp.active >= 0 ? hp.active : 0);
+    } else if (e.key === 'Escape' && !hpList.hidden) {
+      e.preventDefault();
+      closeHp();
+    }
+  });
+  $('hpOn').addEventListener('change', (e) => { state.setup.hpOn = e.target.checked; ensureCtx(); afterSetupChange(); renderHp(); });
+  $('hpClear').addEventListener('click', () => {
+    const name = state.setup.hp ? state.setup.hp.name : '';
+    state.setup.hp = null;
+    afterSetupChange(); renderHp();
+    $('hpStatus').textContent = 'Removed ' + name + '. Search to choose another model.';
+    hpEl.focus();
+  });
+  $('ageIn').addEventListener('change', (e) => {
+    const v = Math.round(+e.target.value);
+    if (!e.target.value.trim()) { setAge(null); return; }
+    if (!(v >= AGE_MIN && v <= 110)) { $('ageText').textContent = 'Enter an age between ' + AGE_MIN + ' and 110. The standard Earprint uses covers adults from 18 to 80.'; return; }
+    setAge(v);
+  });
+  $('ageIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.dispatchEvent(new Event('change')); });
+  document.querySelectorAll('input[name="ageSex"]').forEach((r) => r.addEventListener('change', () => { if (r.checked) { state.setup.sex = r.value; afterSetupChange(); renderAge(); } }));
+  document.querySelectorAll('input[name="ageAmt"]').forEach((r) => r.addEventListener('change', () => { if (r.checked) { state.setup.ageAmt = r.value; ensureCtx(); afterSetupChange(); renderAge(); } }));
+  $('exSetup').addEventListener('change', (e) => { state.exSetup = e.target.checked; store.set('exSetup', state.exSetup); renderExport(); });
   $('artRun').addEventListener('click', runArtists);
   $('artCancel').addEventListener('click', cancelArtists);
   $('artEven').addEventListener('click', () => { ensureCtx(); fitArtists(-1); });
@@ -1945,8 +2277,10 @@ function init() {
   $('miniJump').addEventListener('click', () => { document.querySelector('.player').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   window.addEventListener('scroll', renderMini, { passive: true });
   window.addEventListener('resize', renderMini);
+  document.addEventListener('focusin', renderMini);
+  document.addEventListener('focusout', () => setTimeout(renderMini, 0));
   $('vol').addEventListener('input', (e) => { if (master) master.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.02); });
-  [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgTypical', 'typical'], ['lgCurve', 'curve']].forEach(([id, k]) => {
+  [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgTypical', 'typical'], ['lgCurve', 'curve'], ['lgSetup', 'setup']].forEach(([id, k]) => {
     $(id).checked = state.layers[k];
     $(id).addEventListener('change', (e) => {
       state.layers[k] = e.target.checked;
@@ -2038,16 +2372,18 @@ function init() {
       else if (en.target === $('fpChart')) { if (state.track && state.track.fp) renderFingerprint(); }
       else if (en.target === $('artChart')) { if (!$('artChart').hidden) renderArtistsPanel(); }
       else if (en.target === $('bandInfo')) sizeBandInfo($('bandInfo'));
+      else if (en.target === $('hpChart')) renderHpChart();
+      else if (en.target === $('ageChart')) { if (!$('setAge').hidden) renderAge(); }
     });
   });
-  [canvas, waveCanvas, $('fpChart'), $('artChart'), $('bandInfo')].forEach((n) => ro.observe(n));
+  [canvas, waveCanvas, $('fpChart'), $('artChart'), $('bandInfo'), $('hpChart'), $('ageChart')].forEach((n) => ro.observe(n));
   readColors();
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
   new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { sizeBandInfo($('bandInfo'), true); scheduleDraw(); });
 
   readGutter();
-  renderFaders(); renderSlots(); renderLevel(); renderExport(); renderPicks(); renderLoop(); renderGenreChips(); renderBandInfo(); renderFitAvailability();
+  renderFaders(); renderSlots(); renderLevel(); renderExport(); renderPicks(); renderLoop(); renderGenreChips(); renderBandInfo(); renderFitAvailability(); renderSetupTiles(); renderHp(); syncAgeRadios();
   fitCanvas(canvas); fitCanvas(waveCanvas);
   scheduleDraw();
 
@@ -2060,5 +2396,16 @@ function init() {
 
   showPopular();
   loadGenres();
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
+}
+/** Links such as /lab/#headphones open that part of your setup. */
+function openFromHash() {
+  const k = { '#headphones': 'hp', '#hearing': 'age', '#equaliser': 'eq' }[location.hash];
+  if (!k) return;
+  if ($(SETUP_IDS[k][1]).hidden) openSetup(k);
+  $(SETUP_IDS[k][0]).scrollIntoView({ block: 'start' });
+  if (k === 'hp') hpEl.focus({ preventScroll: true });
+  else if (k === 'age') $('ageIn').focus({ preventScroll: true });
 }
 init();

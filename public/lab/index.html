@@ -21,8 +21,115 @@
   <div class="lab-intro">
     <h1>EQ lab</h1>
     <span class="tag">Prototype</span>
-    <p>Pick a song, shape it right on the frequency scope, and compare two settings at matched volume. New to EQ? Read <a href="/">how it works</a> or the <a href="/#cheatsheet">EQ cheat sheet</a>.</p>
+    <p>Tell it your equaliser and headphones, pick a song, then shape it right on the frequency scope and compare two settings at matched volume. New to EQ? Read <a href="/">how it works</a> or the <a href="/#cheatsheet">EQ cheat sheet</a>.</p>
   </div>
+
+  <section class="panel setup" aria-labelledby="setupLabel">
+    <div class="setup-head">
+      <h2 class="label" id="setupLabel">Your setup</h2>
+      <p class="note">Set these once. They apply to every song and every export, and stay in this browser.</p>
+    </div>
+    <div class="setup-grid">
+      <button class="tile" type="button" id="tileEq" aria-expanded="false" aria-controls="setEq">
+        <span class="tile-k">Equaliser</span><b class="tile-v" id="tileEqV">10 bands</b><small class="tile-s" id="tileEqS"></small>
+      </button>
+      <div class="setup-body" id="setEq" role="region" aria-labelledby="tileEq" hidden>
+        <div class="layoutbar">
+          <label class="lay-pick" for="layoutSel"><span>Your equaliser</span><select class="btn" id="layoutSel"></select></label>
+          <label class="switch fine" for="fineSteps">0.5 dB steps <input type="checkbox" id="fineSteps" role="switch"></label>
+        </div>
+        <div class="laynotes">
+          <p class="note" id="layoutNote"></p>
+          <p class="note laymsg" id="layoutMsg" role="status" aria-live="polite"></p>
+          <details class="howto">
+            <summary>About band layouts and steps</summary>
+            <ul>
+              <li><b>A band is one slider.</b> It turns up or down the part of the sound around its frequency. Pick the layout of the equaliser you’ll copy the setting into, so what you hear here is what you can set there.</li>
+              <li><b>Fewer bands, broader strokes.</b> A car’s treble control can’t tame a harsh 4 kHz without also dulling the cymbals; ten bands can. Auto fit and quick fixes always work with the bands you have.</li>
+              <li><b>Switching layouts converts A and B</b> to the closest match the new layout can make, and the scope shows the result. Switch straight back to get the originals.</li>
+              <li><b>Steps.</b> Some equalisers move in 0.5 dB steps, many phones only in whole dB, and car stereos often count steps rather than dB. Turn off 0.5 dB steps to match a phone.</li>
+              <li><b>Why your device can still sound a little different:</b> phone makers don’t publish their filter shapes; extras such as Dolby Atmos, Adapt Sound, bass boost or sound modes change the sound on top; some phones keep a separate equaliser for each output; and the lab matches loudness while your phone doesn’t, so boosts sound louder there.</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+
+      <button class="tile" type="button" id="tileHp" aria-expanded="false" aria-controls="setHp">
+        <span class="tile-k">Headphones</span><b class="tile-v" id="tileHpV">Not chosen</b><small class="tile-s" id="tileHpS">Correct for your exact model</small>
+      </button>
+      <div class="setup-body" id="setHp" role="region" aria-labelledby="tileHp" hidden>
+        <div class="hp-grid">
+          <div class="hp-find">
+            <label class="fld-label" for="hpQ">Find your headphones or earbuds</label>
+            <div class="search hp-search">
+              <input id="hpQ" type="search" placeholder="Brand and model, like Sony WH-1000XM5" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="hpList" autocomplete="off" spellcheck="false" enterkeyhint="search">
+              <div class="suggest" id="hpList" role="listbox" aria-label="Headphone models" hidden></div>
+            </div>
+            <p class="note" id="hpStatus">More than 6,000 models, measured by independent reviewers and corrected by <a href="https://autoeq.app" target="_blank" rel="noopener">AutoEq</a>.</p>
+          </div>
+          <div class="hp-card" id="hpCard" hidden>
+            <div class="hp-title"><b id="hpName"></b><button class="btn small" type="button" id="hpClear">Remove</button></div>
+            <p class="note" id="hpMeta"></p>
+            <label class="switch" for="hpOn">Apply the correction <input type="checkbox" id="hpOn" role="switch"></label>
+            <div class="chart curve" id="hpChart"></div>
+            <p class="note" id="hpNote"></p>
+          </div>
+        </div>
+        <details class="howto">
+          <summary>About headphone correction</summary>
+          <ul>
+            <li><b>What it does.</b> Every model has its own sound. AutoEq compares measurements of your model with a target that most listeners preferred in research by Harman, and works out ten filters that close the gap. The lab plays songs through those filters and then through your own setting.</li>
+            <li><b>Only for that pair.</b> Turn it off when you listen on anything else. The lab can’t tell what you’re wearing.</li>
+            <li><b>A starting point, not gospel.</b> Each model was measured once, on a test rig. Your pair, your ears and the fit of your earbuds change the sound, especially the bass, so adjust by ear on top.</li>
+            <li><b>Pick the right version.</b> Some models are listed per mode, such as noise cancelling on or off, or with different ear tips or pads. Choose the one that matches how you use them.</li>
+            <li><b>Exports include it.</b> Equalizer APO and Wavelet apply it exactly. Equalisers with fewer bands get the closest match, which keeps the overall balance but not the fine detail. The car and speaker export leaves it out.</li>
+          </ul>
+        </details>
+      </div>
+
+      <button class="tile" type="button" id="tileAge" aria-expanded="false" aria-controls="setAge">
+        <span class="tile-k">Hearing</span><b class="tile-v" id="tileAgeV">Not set</b><small class="tile-s" id="tileAgeS">Optional lift for your age</small>
+      </button>
+      <div class="setup-body" id="setAge" role="region" aria-labelledby="tileAge" hidden>
+        <div class="age-grid">
+          <div class="age-ctl">
+            <div class="age-row">
+              <label class="fld" for="ageIn"><span>Your age</span><input id="ageIn" type="number" inputmode="numeric" min="18" max="110" step="1" placeholder="Years"></label>
+              <div class="seg" role="radiogroup" aria-label="Use typical hearing for">
+                <span class="seg-label">Typical hearing for</span>
+                <label><input type="radio" name="ageSex" value="any">Everyone</label>
+                <label><input type="radio" name="ageSex" value="f">Women</label>
+                <label><input type="radio" name="ageSex" value="m">Men</label>
+              </div>
+            </div>
+            <div class="seg" role="radiogroup" aria-label="Age compensation">
+              <span class="seg-label">Compensation</span>
+              <label><input type="radio" name="ageAmt" value="off">Off</label>
+              <label><input type="radio" name="ageAmt" value="gentle">Gentle</label>
+              <label><input type="radio" name="ageAmt" value="strong">Stronger</label>
+            </div>
+            <p class="insight" id="ageText"></p>
+          </div>
+          <div class="age-side">
+            <ul class="keylist" id="ageKey" hidden>
+              <li><i class="lk loss"></i><span id="ageKeyLoss">Typical hearing change</span></li>
+              <li><i class="lk hp"></i><span id="ageKeyLift">Earprint’s lift</span></li>
+            </ul>
+            <div class="chart curve" id="ageChart"></div>
+          </div>
+        </div>
+        <details class="howto">
+          <summary>Why this helps, and where it stops</summary>
+          <ul>
+            <li><b>Hearing changes from the top down.</b> With age the ear loses sensitivity to high sounds first, so cymbals, breath and the edges of consonants fade long before bass and voices do. Music slowly sounds duller than it did, without anyone noticing the moment it changed.</li>
+            <li><b>Why only part of it.</b> At normal listening levels the ear’s loudness growth makes up for some of a mild loss, and giving back all of it sounds harsh. Hearing aids give back roughly a third to a half, and Earprint does the same: Gentle is a third, Stronger is a half, never more than +6 dB, and only where hearing is weaker than at 500 Hz to 1 kHz. The volume you choose already covers the rest.</li>
+            <li><b>It’s the typical change, not yours.</b> It comes from the international standard for hearing and age (ISO 7029:2017), the median for people with no ear disease or unusual noise exposure. Real people vary a lot either side, so let your ears decide whether it helps.</li>
+            <li><b>It isn’t a hearing test.</b> If speech is hard to follow or you notice a change in your hearing, see an audiologist or your GP. Some phones offer a personalised version based on a quick hearing check.</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+  </section>
 
   <div class="top">
     <section class="panel src" aria-labelledby="srcLabel">
@@ -91,6 +198,7 @@
           <label class="lg"><input type="checkbox" id="lgAverage" checked><i class="av"></i>Song average</label>
           <label class="lg"><input type="checkbox" id="lgTypical" checked><i class="ty"></i><span id="lgTypName">Typical song</span></label>
           <label class="lg"><input type="checkbox" id="lgCurve" checked><i class="cv" id="lgCurveSw"></i>EQ curve</label>
+          <label class="lg" id="lgSetupWrap" hidden><input type="checkbox" id="lgSetup" checked><i class="su"></i>Your setup</label>
         </div>
       </div>
       <div class="goal">
@@ -98,30 +206,13 @@
         <details class="howto">
           <summary>How to read the scope</summary>
           <ul>
-            <li><b>Live sound</b> is the song as you hear it, after your EQ.</li>
+            <li><b>Live sound</b> is the song as you hear it, after your setup and EQ.</li>
             <li><b>Song average</b> is the balance of the whole clip before EQ. Where it rises above the shaded band, this song has more energy there than most songs. Where it drops below, less.</li>
             <li><b>Typical song</b> is the middle half of popular songs measured the same way: songs of the same genre when Earprint knows it, otherwise 128 songs across 16 genres. It’s a reference, not a target.</li>
             <li><b>EQ curve</b> shows how much each part of the range is turned up or down. Drag a dot or a fader to change it.</li>
+            <li><b>Your setup</b> is the headphone correction and age compensation from the top of the page, when they’re on. They play under every setting, so A and B both get them.</li>
             <li>All of it shares one dB scale, with 0 dB at the song’s average level. Music naturally gets quieter towards the treble; the scope evens that out by 3 dB per octave, so a well-balanced mix looks roughly level.</li>
             <li><b>Auto fit</b>, below, can set the curve for you. “Even it out” moves the song towards the band. “Bring out its character” lifts the parts where the song has more than most music, so its genre’s traits count too, and never cuts.</li>
-          </ul>
-        </details>
-      </div>
-      <div class="layoutbar">
-        <label class="lay-pick" for="layoutSel"><span>Your equaliser</span><select class="btn" id="layoutSel"></select></label>
-        <label class="switch fine" for="fineSteps">0.5 dB steps <input type="checkbox" id="fineSteps" role="switch"></label>
-      </div>
-      <div class="laynotes">
-        <p class="note" id="layoutNote"></p>
-        <p class="note laymsg" id="layoutMsg" role="status" aria-live="polite"></p>
-        <details class="howto">
-          <summary>About band layouts and steps</summary>
-          <ul>
-            <li><b>A band is one slider.</b> It turns up or down the part of the sound around its frequency. Pick the layout of the equaliser you’ll copy the setting into, so what you hear here is what you can set there.</li>
-            <li><b>Fewer bands, broader strokes.</b> A car’s treble control can’t tame a harsh 4 kHz without also dulling the cymbals; ten bands can. Auto fit and quick fixes always work with the bands you have.</li>
-            <li><b>Switching layouts converts A and B</b> to the closest match the new layout can make, and the scope shows the result. Switch straight back to get the originals.</li>
-            <li><b>Steps.</b> Some equalisers move in 0.5 dB steps, many phones only in whole dB, and car stereos often count steps rather than dB. Turn off 0.5 dB steps to match a phone.</li>
-            <li><b>Why your device can still sound a little different:</b> phone makers don’t publish their filter shapes; extras such as Dolby Atmos, Adapt Sound, bass boost or sound modes change the sound on top; some phones keep a separate equaliser for each output; and the lab matches loudness while your phone doesn’t, so boosts sound louder there.</li>
           </ul>
         </details>
       </div>
@@ -258,6 +349,7 @@
       </div>
     </div>
     <div class="tabs edit-only" role="group" aria-label="Export format" id="exTabs"></div>
+    <label class="switch exsetup edit-only" for="exSetup" id="exSetupWrap" hidden><span id="exSetupText">Include your setup</span> <input type="checkbox" id="exSetup" role="switch"></label>
     <div id="exBody" class="edit-only">
       <div class="ex-main">
         <div id="exVisual" hidden></div>

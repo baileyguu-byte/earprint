@@ -3,7 +3,7 @@
 // the middle half of all songs.
 import { BAND_LABELS, BAND_NAMES, TYPICAL } from './dsp.js';
 
-const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+const sgn = (v, d = 1) => { const a = Math.abs(v).toFixed(d); return (+a === 0 ? '' : v > 0 ? '+' : '−') + a; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const hz = (i) => BAND_LABELS[i].replace('k', ' kHz') + (BAND_LABELS[i].includes('k') ? '' : ' Hz');
@@ -21,7 +21,7 @@ function bar(x, w, y0, y1, r) {
 }
 
 function frame(box, H) {
-  const W = Math.max(280, Math.round(box.clientWidth || 400));
+  const W = Math.max(220, Math.round(box.clientWidth || 400));
   const pad = { l: 6, r: 40, t: 14, b: 28 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, cw = pw / 10;
   return { W, H, pad, pw, ph, cw };
