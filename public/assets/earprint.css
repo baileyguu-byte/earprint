@@ -1,5 +1,18 @@
 /* Earprint shared styles. Identity: a hi-fi console. Wide faceplate lettering for labels,
    a plain modern sans for reading, mono for numbers. Amber = setting A / low end, blue = setting B / top end. */
+
+/* Fonts are served from this site (SIL Open Font License, see /assets/fonts), so pages make no
+   requests to other font hosts. */
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-500-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-ext-400-normal.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-ext-500-normal.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Instrument Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url(/assets/fonts/instrument-sans-latin-ext-600-normal.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url(/assets/fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url(/assets/fonts/jetbrains-mono-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Michroma'; font-style: normal; font-weight: 400; font-display: swap; src: url(/assets/fonts/michroma-latin-400-normal.woff2) format('woff2'); }
+
 :root {
   --bg: #E9ECEF;
   --panel: #F7F8F9;
@@ -12,6 +25,9 @@
   --on-a: #FFFFFF;
   --on-b: #FFFFFF;
   --spec: #2A3340;
+  --typ-fill: rgb(89 97 107 / .17);
+  /* Artist colours for charts, in pick order (validated for colour-blind separation) */
+  --s1: #1BAF7A; --s2: #6250D6; --s3: #EDA100; --s4: #E87BA4; --s5: #008300;
   --display: 'Michroma', 'Eurostile', 'Arial Black', system-ui, sans-serif;
   --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -22,14 +38,22 @@
   :root:not([data-theme="light"]) {
     --bg: #101216; --panel: #181B20; --well: #0B0D10; --ink: #E7EAEE; --muted: #98A1AC; --line: #2B3038;
     --a: #F0A040; --b: #63ABEB; --on-a: #14171B; --on-b: #0D1520; --spec: #C9D1DB;
+    --typ-fill: rgb(152 161 172 / .15);
+    --s1: #199E70; --s2: #9085E9; --s3: #C98500; --s4: #D55181; --s5: #008300;
     color-scheme: dark;
   }
+  :root:not([data-theme="light"]) .dz-logo.on-light { display: none; }
+  :root:not([data-theme="light"]) .dz-logo.on-dark { display: inline-block; }
 }
 :root[data-theme="dark"] {
   --bg: #101216; --panel: #181B20; --well: #0B0D10; --ink: #E7EAEE; --muted: #98A1AC; --line: #2B3038;
   --a: #F0A040; --b: #63ABEB; --on-a: #14171B; --on-b: #0D1520; --spec: #C9D1DB;
+  --typ-fill: rgb(152 161 172 / .15);
+  --s1: #199E70; --s2: #9085E9; --s3: #C98500; --s4: #D55181; --s5: #008300;
   color-scheme: dark;
 }
+:root[data-theme="dark"] .dz-logo.on-light { display: none; }
+:root[data-theme="dark"] .dz-logo.on-dark { display: inline-block; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -75,10 +99,19 @@ h1, h2, h3 { text-wrap: balance; }
 .btn.big { font-size: 15px; padding: 12px 18px; border-radius: 10px; }
 kbd { font: 500 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--muted); }
 
+/* Deezer credit. The official logo, unaltered: purple heart with a black wordmark on light
+   pages and a white one on dark pages, with clear space around it (Deezer brand guidelines). */
+.dz-credit { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; text-decoration: none; white-space: nowrap; }
+.dz-credit:hover span { color: var(--ink); }
+.dz-logo { display: inline-block; height: 20px; width: auto; padding: 4px; box-sizing: content-box; flex: none; }
+.dz-logo.on-dark { display: none; }
+
 /* Footer */
 .site-foot { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-.site-foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding-block: 22px 32px; }
+.site-foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 20px; padding-block: 22px 32px; }
 .site-foot p { margin: 0; }
+.foot-credit .dz-credit { vertical-align: middle; margin: -6px 2px -6px 0; }
+.foot-credit .dz-logo { height: 16px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

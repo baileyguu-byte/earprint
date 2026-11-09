@@ -9,16 +9,14 @@
 <meta property="og:description" content="Shape your EQ on the songs you actually listen to, compare settings blind, and export to Apple Music, Spotify, Equalizer APO or Wavelet.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Michroma&display=swap">
+<link rel="preload" href="/assets/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/earprint.css">
 <link rel="stylesheet" href="/assets/home.css">
 </head>
 <body>
 <header class="site-head"><div class="wrap">
   <a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="bar-a" x="2" y="10" width="3" height="11" rx="1.5"/><rect class="bar-a" x="7" y="5" width="3" height="16" rx="1.5"/><rect class="bar-n" x="12" y="9" width="3" height="12" rx="1.5"/><rect class="bar-b" x="17" y="3" width="3" height="18" rx="1.5"/></svg>EARPRINT</a>
-  <nav class="site-nav" aria-label="Main"><a href="/" aria-current="page">How it works</a><a href="/lab/">EQ lab</a></nav>
+  <nav class="site-nav" aria-label="Main"><a href="/" aria-current="page">How it works</a><a href="/lab/">EQ lab</a><a href="/about/">About</a></nav>
 </div></header>
 
 <main class="wrap">
@@ -77,10 +75,114 @@
       <dl class="facts">
         <div><dt>+3 dB</dt><dd>A small but clear lift.</dd></div>
         <div><dt>+6 dB</dt><dd>A big change. Most good settings stay within this.</dd></div>
-        <div><dt>±12 dB</dt><dd>Earprint’s limit. Changes this large usually cause more problems than they fix.</dd></div>
+        <div><dt>±10 dB</dt><dd>Where Earprint stops unless you unlock ±12 dB. Changes this large usually cause more problems than they fix.</dd></div>
         <div><dt>Preamp</dt><dd>Boosting can push music past the maximum level and make it distort, which is called <b>clipping</b>. Turning the overall level down by your largest boost leaves room. Earprint’s exports include this.</dd></div>
         <div><dt>Louder wins</dt><dd>Played back to back, the louder version almost always sounds better, even if nothing else changed. Earprint matches the volume of the settings you compare, so you judge the tone and not the level.</dd></div>
       </dl>
+    </div>
+  </section>
+
+  <section class="sec" id="cheatsheet" aria-labelledby="cheatTitle">
+    <div class="sec-head">
+      <p class="label">EQ cheat sheet</p>
+      <h2 id="cheatTitle">Where instruments live, and what to listen for</h2>
+      <p>Mixing engineers keep charts like this to find problems quickly. A listening EQ can’t single out one instrument: raising 100 Hz lifts the kick drum and the bass together. So use it to know what a fader will change, then let your ears decide.</p>
+    </div>
+    <figure class="irchart" aria-labelledby="irCap">
+      <div class="ir-legend" aria-hidden="true"><span><i class="k-span"></i>Main range</span><span><i class="k-good"></i>Where it shines</span><span><i class="k-bad"></i>Where trouble starts</span></div>
+      <div class="ir-axis" aria-hidden="true"><div>
+        <span class="first" style="left:0">20 Hz</span><span class="minor" style="left:13.3%">50</span><span style="left:23.3%">100</span><span class="minor" style="left:33.3%">200</span><span style="left:46.6%">500</span><span class="minor" style="left:56.6%">1k</span><span style="left:66.6%">2k</span><span style="left:79.9%">5k</span><span class="minor" style="left:89.9%">10k</span><span class="last" style="left:100%">20 kHz</span>
+      </div></div>
+      <ul class="ir-list">
+        <li class="ir">
+          <span class="ir-name">Kick drum</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:10.0%;width:69.9%"></span><span class="ir-mark good" style="left:15.9%;width:4.2%"></span><span class="ir-mark good" style="left:23.3%;width:10.0%"></span><span class="ir-mark bad" style="left:33.3%;width:13.3%"></span><span class="ir-mark good" style="left:56.6%;width:23.3%"></span></div>
+          <p class="ir-notes"><span class="good">Punch <i>60–80 Hz</i></span> <span class="good">Knock <i>100–200 Hz</i></span> <span class="bad">Boxy <i>200–500 Hz</i></span> <span class="good">Click <i>1–5 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Snare drum</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:23.3%;width:69.3%"></span><span class="ir-mark good" style="left:29.2%;width:7.4%"></span><span class="ir-mark bad" style="left:43.4%;width:8.1%"></span><span class="ir-mark good" style="left:66.7%;width:8.1%"></span><span class="ir-mark good" style="left:86.7%;width:5.9%"></span></div>
+          <p class="ir-notes"><span class="good">Body <i>150–250 Hz</i></span> <span class="bad">Ring <i>400–700 Hz</i></span> <span class="good">Snap <i>2–3.5 kHz</i></span> <span class="good">Air <i>8–12 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Hi-hats and cymbals</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:29.2%;width:67.6%"></span><span class="ir-mark bad" style="left:72.5%;width:12.3%"></span><span class="ir-mark good" style="left:86.7%;width:5.9%"></span></div>
+          <p class="ir-notes"><span class="bad">Harsh <i>3–7 kHz</i></span> <span class="good">Shimmer <i>8–12 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Bass</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:10.0%;width:69.9%"></span><span class="ir-mark good" style="left:25.9%;width:10.6%"></span><span class="ir-mark bad" style="left:39.2%;width:7.4%"></span><span class="ir-mark good" style="left:53.4%;width:3.2%"></span></div>
+          <p class="ir-notes"><span class="good">Body <i>120–250 Hz</i></span> <span class="bad">Mud <i>300–500 Hz</i></span> <span class="good">Bite <i>800 Hz–1 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Electric guitar</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:20.1%;width:66.7%"></span><span class="ir-mark bad" style="left:33.3%;width:5.9%"></span><span class="ir-mark good" style="left:39.2%;width:23.3%"></span><span class="ir-mark bad" style="left:72.5%;width:10.0%"></span></div>
+          <p class="ir-notes"><span class="bad">Tubby <i>200–300 Hz</i></span> <span class="good">Body <i>300 Hz–1.5 kHz</i></span> <span class="bad">Harsh <i>3–6 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Acoustic guitar</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:20.1%;width:72.5%"></span><span class="ir-mark bad" style="left:29.2%;width:10.0%"></span><span class="ir-mark good" style="left:60.4%;width:4.7%"></span><span class="ir-mark good" style="left:86.7%;width:5.9%"></span></div>
+          <p class="ir-notes"><span class="bad">Boomy <i>150–300 Hz</i></span> <span class="good">Clarity <i>1.3–1.8 kHz</i></span> <span class="good">String detail <i>8–12 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Piano</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:5.9%;width:80.9%"></span><span class="ir-mark good" style="left:15.9%;width:17.4%"></span><span class="ir-mark bad" style="left:33.3%;width:13.3%"></span><span class="ir-mark bad" style="left:66.7%;width:10.0%"></span></div>
+          <p class="ir-notes"><span class="good">Body <i>60–200 Hz</i></span> <span class="bad">Mud <i>200–500 Hz</i></span> <span class="bad">Harsh <i>2–4 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Vocals</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:23.3%;width:73.5%"></span><span class="ir-mark bad" style="left:10.0%;width:13.3%"></span><span class="ir-mark bad" style="left:46.6%;width:12.7%"></span><span class="ir-mark bad" style="left:79.9%;width:6.8%"></span><span class="ir-mark good" style="left:90.0%;width:6.8%"></span></div>
+          <p class="ir-notes"><span class="bad">Rumble <i>40–100 Hz</i></span> <span class="bad">Nasal <i>500 Hz–1.2 kHz</i></span> <span class="bad">Sibilance <i>5–8 kHz</i></span> <span class="good">Air <i>10–16 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Strings</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:15.9%;width:80.9%"></span><span class="ir-mark bad" style="left:33.3%;width:13.3%"></span><span class="ir-mark good" style="left:56.6%;width:20.1%"></span><span class="ir-mark good" style="left:90.0%;width:6.8%"></span></div>
+          <p class="ir-notes"><span class="bad">Mud <i>200–500 Hz</i></span> <span class="good">Presence <i>1–4 kHz</i></span> <span class="good">Air <i>10–16 kHz</i></span></p>
+        </li>
+        <li class="ir">
+          <span class="ir-name">Brass</span>
+          <div class="ir-track" aria-hidden="true"><span class="ir-span" style="left:20.1%;width:69.9%"></span><span class="ir-mark bad" style="left:46.6%;width:6.8%"></span><span class="ir-mark good" style="left:56.6%;width:23.3%"></span></div>
+          <p class="ir-notes"><span class="bad">Honky <i>500–800 Hz</i></span> <span class="good">Attack <i>1–5 kHz</i></span></p>
+        </li>
+      </ul>
+      <div class="ir-faders" aria-hidden="true"><div>
+        <span style="left:6.8%">32</span><span style="left:16.8%">64</span><span style="left:26.5%">125</span><span style="left:36.6%">250</span><span style="left:46.6%">500</span><span style="left:56.6%">1k</span><span style="left:66.7%">2k</span><span style="left:76.7%">4k</span><span style="left:86.7%">8k</span><span style="left:96.8%">16k</span>
+      </div></div>
+      <figcaption id="irCap">The dotted lines are Earprint’s ten faders, labelled underneath. Ranges are approximate: every instrument, player and recording is different.</figcaption>
+    </figure>
+
+    <div class="cols cheat-cols">
+      <div class="cheat-block">
+        <h3>What’s bothering you?</h3>
+        <table class="fixtable">
+          <thead><tr><th scope="col">What you hear</th><th scope="col">Where it lives</th><th scope="col">Try in Earprint</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Boomy <span>Bass rings on and blurs the beat</span></th><td>60–150 Hz</td><td>Lower 64 Hz, then 125 Hz</td></tr>
+            <tr><th scope="row">Muddy <span>Thick, everything blurs together</span></th><td>200–500 Hz</td><td>Lower 250 Hz, then 500 Hz</td></tr>
+            <tr><th scope="row">Boxy <span>Like a cardboard box</span></th><td>300–600 Hz</td><td>Lower 500 Hz</td></tr>
+            <tr><th scope="row">Nasal <span>Honky, as if through a phone</span></th><td>500 Hz–1.5 kHz</td><td>Lower 1 kHz a little</td></tr>
+            <tr><th scope="row">Harsh <span>Edgy and tiring at normal volume</span></th><td>2–5 kHz</td><td>Lower 4 kHz, then 2 kHz</td></tr>
+            <tr><th scope="row">Sharp “s” sounds <span>S and T sounds hiss or spit</span></th><td>5–8 kHz</td><td>Lower 8 kHz</td></tr>
+            <tr><th scope="row">Dull <span>No sparkle, like a blanket over the speakers</span></th><td>8–16 kHz</td><td>Raise 8 kHz and 16 kHz gently</td></tr>
+            <tr><th scope="row">Thin <span>Lacks body and warmth</span></th><td>100–300 Hz</td><td>Raise 125 Hz, then 64 Hz and 250 Hz</td></tr>
+            <tr><th scope="row">Lacks punch <span>Kick and bass feel soft</span></th><td>60–100 Hz</td><td>Raise 64 Hz a little</td></tr>
+            <tr><th scope="row">Vocals buried <span>Voices sit behind the band</span></th><td>1–4 kHz</td><td>Raise 2 kHz, lower 250 Hz a touch</td></tr>
+          </tbody>
+        </table>
+        <p class="note-line">In the lab, the Quick fixes make these moves for you, a little at a time.</p>
+      </div>
+      <div class="cheat-block">
+        <h3>Rules of thumb</h3>
+        <ul class="points">
+          <li><b>Small moves first</b><span>2 to 3 dB is a clear change. If you need more than 6 dB, check the fit of your earbuds, or whether the song itself is the problem.</span></li>
+          <li><b>Cut before you boost</b><span>Lowering what’s in the way keeps headroom and usually sounds cleaner than raising everything around it.</span></li>
+          <li><b>No setting suits everything</b><span>Songs and headphones differ, so test on the music you play most.</span></li>
+          <li><b>Compare at the same loudness</b><span>Louder fools everyone. Keep loudness matching on and use the blind test.</span></li>
+          <li><b>Loop the part that bothers you</b><span>A quiet verse and a loud chorus can need different things. Tune for the part you care about.</span></li>
+          <li><b>The scope finds, your ears decide</b><span>It shows where the energy is, not what sounds good.</span></li>
+        </ul>
+        <p class="note-line">Further reading: <a href="https://www.izotope.com/community/blog/eq-cheat-sheet" target="_blank" rel="noopener">iZotope’s EQ cheat sheet</a>, written for mixing engineers. The ranges above follow the same common practice.</p>
+      </div>
     </div>
   </section>
 
@@ -153,10 +255,48 @@
     </div>
     <ol class="steps">
       <li><h3>Pick a song</h3><p>Search for an artist, song or genre, or drop in your own audio file. Add up to five artists you listen to most.</p></li>
-      <li><h3>See where it lives</h3><p>The frequency scope shows the song’s sound live, and a chart shows which octaves carry the most energy.</p></li>
-      <li><h3>Shape and compare</h3><p>Move the ten faders, loop the part of the song you care about, and switch between settings A and B. Run a blind test to choose without bias.</p></li>
+      <li><h3>See where it lives</h3><p>The scope draws the song’s balance next to a typical song, so you can see what makes it different, and a chart picks out the unusual octaves.</p></li>
+      <li><h3>Shape and compare</h3><p>Drag the dots on the scope or the faders under it, or start from auto fit or a quick fix. Switch between settings A and B, or run a blind test.</p></li>
       <li><h3>Copy it to your app</h3><p>Export for Apple Music on a Mac, Spotify, Equalizer APO on Windows or Wavelet on Android.</p></li>
     </ol>
+  </section>
+
+  <section class="sec" aria-labelledby="aimTitle">
+    <div class="sec-head">
+      <p class="label">Reading the scope</p>
+      <h2 id="aimTitle">There’s no line to match</h2>
+      <p>The lab shows each song’s average balance next to a typical song: the middle half of 128 popular songs from 16 genres, measured the same way. Neither is a target. They show where a song is unusual, so you know what a fader will change. The goal is whatever sounds best to you, on your headphones.</p>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <p class="label">Shape by ear</p>
+        <h3>Drag the curve</h3>
+        <p>Each dot on the EQ curve sits above its fader. Move either one and listen. Point at a band to see what lives there and how this song compares.</p>
+      </article>
+      <article class="card">
+        <p class="label">Auto fit</p>
+        <h3>Even it out</h3>
+        <p>Moves the song towards a typical balance. Handy for a boomy, muddy or harsh recording, but it can also flatten a style you love.</p>
+      </article>
+      <article class="card">
+        <p class="label">Auto fit</p>
+        <h3>Bring out its character</h3>
+        <p>Pushes the song further from typical, like a genre preset made for that one song. Gentle, medium and strong settings, never more than ±6 dB.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="artTitle">
+    <div class="sec-head">
+      <p class="label">Up to five artists</p>
+      <h2 id="artTitle">Fit one setting to the music you play</h2>
+      <p>Pick up to five artists you listen to most. Earprint measures four of each artist’s top songs, averages them, and shows where your artists sit against a typical song and against each other. Auto fit can then build a setting from the average.</p>
+    </div>
+    <ul class="points">
+      <li><b>Alike artists, clear result</b><span>If your artists all lean the same way, say heavy in the sub-bass, the fit has something real to work with.</span></li>
+      <li><b>Different artists cancel out</b><span>A bass-heavy rapper and a bright folk singer pull in opposite directions, so their average lands near a typical song and the fit stays close to flat. That’s a sign one setting can’t suit them all: save one per artist instead.</span></li>
+      <li><b>Only numbers are kept</b><span>The previews are measured in your browser without playing aloud. Earprint keeps the ten numbers per song, never the audio.</span></li>
+    </ul>
   </section>
 
   <section class="sec" aria-labelledby="limTitle">
@@ -169,6 +309,8 @@
       <li><b>It doesn’t know your headphones.</b><span>The settings you find mix your taste with fixes for your device.</span></li>
       <li><b>Your browser isn’t your music app.</b><span>Every EQ app shapes its bands slightly differently, so exported settings are close approximations. Spotify’s sliders don’t show numbers, so you set them by eye.</span></li>
       <li><b>Volume matching is an estimate.</b><span>It’s based on each song’s average balance, so very uneven songs can still sound slightly louder on one setting.</span></li>
+      <li><b>The typical song is one sample.</b><span>It’s the middle of 128 popular songs from Deezer’s charts in November 2026. Plenty of great music sits outside it, and that’s fine.</span></li>
+      <li><b>Auto fit is a starting point.</b><span>It only knows the song’s balance, not your taste or your headphones. Listen before you keep it.</span></li>
       <li><b>Some songs have no preview.</b><span>And some artists appear more than once on Deezer. Earprint shows fan counts so you can pick the main profile.</span></li>
       <li><b>It isn’t a hearing test.</b><span>If you notice changes in your hearing, see an audiologist or your GP.</span></li>
       <li><b>Keep the volume sensible.</b><span>Boosting with an EQ makes it easy to listen louder than you realise.</span></li>
@@ -183,8 +325,8 @@
 </main>
 
 <footer class="site-foot"><div class="wrap">
-  <p>Earprint is an early prototype. Song previews and artist data from Deezer.</p>
-  <p><a href="/lab/">EQ lab</a></p>
+  <p class="foot-credit">Song previews and artist data from <a class="dz-credit" href="https://www.deezer.com" target="_blank" rel="noopener"><img class="dz-logo on-light" src="/assets/deezer/deezer-logo-black.png" width="714" height="200" alt="Deezer"><img class="dz-logo on-dark" src="/assets/deezer/deezer-logo-white.png" width="714" height="200" alt="Deezer"></a> Earprint is an independent prototype, not affiliated with Deezer.</p>
+  <p><a href="/lab/">EQ lab</a> · <a href="/about/">Conditions and privacy</a></p>
 </div></footer>
 </body>
 </html>

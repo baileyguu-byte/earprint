@@ -1,8 +1,13 @@
 // Earprint EQ lab.
 import * as dz from './deezer.js';
-import { AC, BANDS, BAND_LABELS, BAND_NAMES, Q, RANGE, PRESETS, N_CURVE, CURVE_F, responseDb, kWeight, meanPower, decode, analyse } from './dsp.js';
+import {
+  AC, BANDS, BAND_LABELS, BAND_NAMES, Q, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
+  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains
+} from './dsp.js';
 import { makeDemo } from './demo.js';
 import { FORMATS, buildExport } from './exports.js';
+import { BAND_INFO, FIXES } from './cheats.js';
+import { renderBalance, renderArtists, outside } from './charts.js';
 
 /* ---------- Helpers ---------- */
 const $ = (id) => document.getElementById(id);
@@ -24,7 +29,10 @@ const fmtTime = (s, tenths = false) => {
   return m + ':' + (tenths ? r.toFixed(1).padStart(4, '0') : String(Math.floor(r)).padStart(2, '0'));
 };
 const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+const dbText = (v) => sgn(v, Number.isInteger(v) ? 0 : 1) + ' dB';
+const hz = (i) => (BAND_LABELS[i].includes('k') ? BAND_LABELS[i].replace('k', ' kHz') : BAND_LABELS[i] + ' Hz');
 const PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
+const playable = (t) => !!(t && t.preview) && t.readable !== false;
 function img(src, cls) {
   if (!src) {
     const s = el('span', 'ph' + (cls ? ' ' + cls : ''));
@@ -42,6 +50,15 @@ function flash(btn, text) {
   clearTimeout(btn._t);
   btn._t = setTimeout(() => { btn.textContent = old; }, 1600);
 }
+/** "−3 dB at 64 Hz and +2 dB at 8 kHz" for the biggest changes in a list of gains. */
+function describeGains(g, max = 3) {
+  const parts = g.map((v, i) => [v, i]).filter(([v]) => v !== 0).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
+  if (!parts.length) return '';
+  const shown = parts.slice(0, max).map(([v, i]) => dbText(v) + ' at ' + hz(i));
+  const rest = parts.length - shown.length;
+  if (rest > 0) return shown.join(', ') + ' and ' + rest + ' smaller ' + (rest === 1 ? 'change' : 'changes');
+  return shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0];
+}
 
 /* ---------- State ---------- */
 const validGains = (g) => Array.isArray(g) && g.length === 10 && g.every((v) => typeof v === 'number' && isFinite(v) && Math.abs(v) <= RANGE);
@@ -52,9 +69,13 @@ const state = {
     : { A: { name: 'Flat', gains: PRESETS['Flat'].slice() }, B: { name: 'Warm', gains: PRESETS['Warm'].slice() } },
   active: 'A',
   match: store.get('match', true) !== false,
-  layers: Object.assign({ spectrum: true, average: true, curve: true }, store.get('layers', {})),
+  limit: store.get('limit', SOFT) === RANGE ? RANGE : SOFT,
+  layers: Object.assign({ spectrum: true, average: true, typical: true, curve: true }, store.get('layers', {})),
   picks: (store.get('artists', null) || store.get('five', []) || []).filter((a) => a && a.id && a.name).slice(0, 5),
   fmt: store.get('fmt', 'apple'),
+  fitStrength: [0.35, 0.65, 1].includes(store.get('fitStrength', 0.65)) ? store.get('fitStrength', 0.65) : 0.65,
+  undo: null,
+  hot: -1,
   track: null,
   demo: null,
   playing: false,
@@ -67,9 +88,13 @@ const state = {
   view: null,
   loadToken: 0,
   deezer: null,
-  genres: dz.FALLBACK_GENRES.slice()
+  genres: dz.FALLBACK_GENRES.slice(),
+  art: { token: 0, running: false, done: 0, total: 0, note: '' }
 };
 if (!FORMATS.some((f) => f.id === state.fmt)) state.fmt = 'apple';
+// Each picked artist keeps its chart colour (slots 1–5) even when others are removed.
+state.picks.forEach((p) => { if (!(p.c >= 1 && p.c <= 5)) p.c = 0; });
+state.picks.forEach((p) => { if (!p.c) p.c = [1, 2, 3, 4, 5].find((c) => !state.picks.some((q) => q.c === c)); });
 const gainsOf = (s) => state.slots[s].gains;
 
 /* ---------- Audio graph ---------- */
@@ -220,6 +245,7 @@ function setLoop(L, opts = {}) {
 function setTrack(t, autoplay) {
   const was = state.playing;
   if (state.playing) { stopVoice(); state.playing = false; }
+  if (t.fp && !t.bal) t.bal = balanceCurve(t.fp.avgDb);
   state.track = t;
   state.offset = 0;
   state.loop = null;
@@ -227,7 +253,7 @@ function setTrack(t, autoplay) {
   peaks = null; lastVis = null;
   buildWavePeaks();
   applyLive();
-  renderLevel(); renderNow(); renderLoop(); renderTime(); renderFingerprint(); renderExport(); renderPlay(); markCurrent(); renderMini();
+  renderLevel(); renderNow(); renderLoop(); renderTime(); renderFingerprint(); renderFitAvailability(); renderExport(); renderPlay(); markCurrent(); renderMini(); renderBandInfo();
   drawWave(); scheduleDraw();
   if (autoplay || was) play();
 }
@@ -239,8 +265,10 @@ async function playDeezerTrack(t) {
   setStatus('Loading “' + (t.title_short || t.title) + '”…');
   try {
     const fresh = await dz.track(t.id);
+    if (fresh.readable === false) throw new Error('Deezer doesn’t offer this song in your country.');
     if (!fresh.preview) throw new Error('Deezer has no preview for this song.');
-    const res = await fetch(fresh.preview);
+    // Previews are streamed into memory only: never cached, stored or offered as a download.
+    const res = await fetch(fresh.preview, { cache: 'no-store' });
     if (!res.ok) throw new Error('The preview server returned an error (' + res.status + ').');
     const buffer = await decode(await res.arrayBuffer());
     const fp = await analyse(buffer).catch(() => null);
@@ -333,6 +361,7 @@ function sugGroup(title, items) {
     o.id = 'sg-' + i;
     o.setAttribute('role', 'option');
     o.setAttribute('aria-selected', 'false');
+    if (it.off) o.setAttribute('aria-disabled', 'true');
     o.append(img(it.pic, it.type === 'genre' ? 'demo' : ''));
     const m = el('div', 'sg-main');
     m.append(el('b', null, it.title));
@@ -368,7 +397,9 @@ function renderSuggest(q, data, err) {
   sugGroup('Songs', tracks.map((t) => ({
     type: 'track', data: t, title: t.title_short || t.title,
     sub: (t.artist ? t.artist.name : '') + (t.album && t.album.title ? ' · ' + t.album.title : ''),
-    pic: t.album && t.album.cover_small, side: t.preview ? '' : 'No preview'
+    pic: t.album && t.album.cover_small,
+    off: !playable(t),
+    side: t.readable === false ? 'Not available here' : t.preview ? '' : 'No preview'
   })));
   sugGroup('Genres', genres.map((g) => ({ type: 'genre', data: g, title: g.name, sub: 'Popular songs in this genre', pic: g.picture_small, side: 'Genre' })));
   if (!sug.items.length) sugEl.append(el('p', 'sg-empty', 'No matches for “' + q + '”. Try another spelling.'));
@@ -393,8 +424,8 @@ function choose(i) {
   if (it.type === 'artist') {
     openArtist(it.data);
   } else if (it.type === 'track') {
-    if (it.data.preview) playDeezerTrack(it.data);
-    else setStatus('Deezer has no preview for that song. Try another one.');
+    if (playable(it.data)) playDeezerTrack(it.data);
+    else setStatus(it.data.readable === false ? 'Deezer doesn’t offer that song in your country. Try another one.' : 'Deezer has no preview for that song. Try another one.');
     if (it.data.artist) openArtist(it.data.artist, { quiet: true });
   } else if (it.type === 'genre') {
     openGenre(it.data);
@@ -428,11 +459,11 @@ function trackRow(t, sub) {
   const s = sub ? sub(t) : '';
   if (s) tx.append(el('small', null, s));
   const d = el('span', 'd');
-  if (t.preview) {
+  if (playable(t)) {
     d.innerHTML = PLAY_SVG;
     b.setAttribute('aria-label', 'Play ' + (t.title_short || t.title) + (t.artist ? ' by ' + t.artist.name : ''));
   } else {
-    d.textContent = 'No preview';
+    d.textContent = t.readable === false ? 'Not available here' : 'No preview';
     b.disabled = true;
   }
   b.append(tx, d);
@@ -569,6 +600,9 @@ function renderPicks() {
   }
   state.picks.forEach((a) => {
     const c = el('span', 'pchip');
+    const dot = el('i');
+    dot.style.background = 'var(--s' + a.c + ')';
+    dot.setAttribute('aria-hidden', 'true');
     const open = el('button', null, a.name);
     open.type = 'button';
     open.addEventListener('click', () => openArtist({ id: a.id, name: a.name, picture_small: a.picture, nb_fan: a.nb_fan }));
@@ -576,10 +610,12 @@ function renderPicks() {
     x.type = 'button';
     x.setAttribute('aria-label', 'Remove ' + a.name + ' from your artists');
     x.addEventListener('click', () => togglePick(a));
-    c.append(open, x);
+    c.append(dot, open, x);
     box.append(c);
   });
+  $('toArtists').hidden = !n;
   renderPickAction();
+  renderArtistsPanel();
 }
 function renderPickAction() {
   const v = state.view, act = $('viewAction');
@@ -591,7 +627,10 @@ function renderPickAction() {
 function togglePick(a) {
   const i = state.picks.findIndex((p) => p.id === a.id);
   if (i >= 0) state.picks.splice(i, 1);
-  else if (state.picks.length < 5) state.picks.push({ id: a.id, name: a.name, picture: a.picture_small || a.picture || '', nb_fan: a.nb_fan });
+  else if (state.picks.length < 5) {
+    const c = [1, 2, 3, 4, 5].find((k) => !state.picks.some((p) => p.c === k));
+    state.picks.push({ id: a.id, name: a.name, picture: a.picture_small || a.picture || '', nb_fan: a.nb_fan, c });
+  }
   store.set('artists', state.picks);
   renderPicks();
 }
@@ -603,17 +642,20 @@ function renderNow() {
   $('nowTitle').textContent = t.title;
   const sub = $('nowSub');
   sub.textContent = '';
-  if (t.source === 'deezer' && t.link) {
-    sub.append(document.createTextNode(t.artist + ' · '));
-    const a = el('a', null, 'Preview on Deezer');
-    a.href = t.link; a.target = '_blank'; a.rel = 'noopener';
-    sub.append(a);
+  if (t.source === 'deezer') {
+    sub.append(document.createTextNode(t.artist + ' · 30-second preview'));
+    if (t.link) {
+      sub.append(document.createTextNode(' · '));
+      const a = el('a', null, 'Full song on Deezer');
+      a.href = t.link; a.target = '_blank'; a.rel = 'noopener';
+      sub.append(a);
+    }
   } else sub.textContent = t.artist;
   const n = img(t.art, t.source === 'demo' ? 'demo' : '');
   n.id = 'nowArt';
   $('nowArt').replaceWith(n);
   $('miniTitle').textContent = t.title;
-  $('miniSub').textContent = t.source === 'deezer' ? t.artist : (t.source === 'demo' ? 'Demo loop' : 'Your file');
+  $('miniSub').textContent = t.source === 'deezer' ? t.artist + ' · Deezer preview' : (t.source === 'demo' ? 'Demo loop' : 'Your file');
 }
 function renderPlay() {
   const p = state.playing;
@@ -645,7 +687,42 @@ function renderTime() {
   }
 }
 
-/* ---------- Faders, settings A and B, blind test ---------- */
+/* ---------- Gains, the ±10 dB soft limit, faders and dots ---------- */
+function presetName(g) {
+  for (const [n, p] of Object.entries(PRESETS)) if (p.every((v, i) => v === g[i])) return n;
+  return 'Custom';
+}
+/** Set one band on the selected setting. Past the limit it stops there and explains why, once. */
+function setGain(i, v) {
+  const lim = state.limit;
+  if (Math.abs(v) > lim) {
+    v = Math.sign(v) * lim;
+    if (lim < RANGE) hitLimit();
+  }
+  v = Math.round(v * 2) / 2 || 0;
+  const slot = state.slots[state.active];
+  if (slot.gains[i] === v) return;
+  slot.gains[i] = v;
+  slot.name = presetName(slot.gains);
+  afterSlotChange();
+}
+function hitLimit() {
+  if (store.get('limitSeen', false)) return;
+  store.set('limitSeen', true);
+  $('limitNote').hidden = false;
+}
+function setLimit(l) {
+  state.limit = l;
+  store.set('limit', l);
+  $('allow12').checked = l === RANGE;
+  $('limitNote').hidden = true;
+  renderFaders();
+}
+function afterSlotChange() {
+  store.set('slots', state.slots);
+  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
+}
+
 const faderEls = [];
 function buildFaders() {
   const box = $('faders');
@@ -655,17 +732,16 @@ function buildFaders() {
     const fd = el('div', 'fader');
     fd.tabIndex = 0;
     fd.setAttribute('role', 'slider');
-    fd.setAttribute('aria-label', BAND_LABELS[i] + ' hertz');
-    fd.setAttribute('aria-valuemin', -RANGE);
-    fd.setAttribute('aria-valuemax', RANGE);
+    fd.setAttribute('aria-label', hz(i) + ', ' + BAND_INFO[i].name.toLowerCase());
+    fd.setAttribute('aria-describedby', 'bandInfo');
     fd.setAttribute('aria-orientation', 'vertical');
-    fd.innerHTML = '<div class="ftrack"><div class="fzero"></div><div class="ffill"></div><div class="fthumb"></div></div>';
+    fd.innerHTML = '<div class="ftrack"><div class="fguide" style="top:25%"></div><div class="fguide" style="top:75%"></div><div class="fzero"></div><div class="ffill"></div><div class="fthumb"></div></div>';
     col.append(read, fd, el('div', 'flab', BAND_LABELS[i]));
     box.append(col);
     const track = fd.querySelector('.ftrack');
     const fromY = (y) => {
       const r = track.getBoundingClientRect();
-      return Math.round((-RANGE + (r.bottom - y) / r.height * 2 * RANGE) * 2) / 2;
+      return -RANGE + (r.bottom - y) / r.height * 2 * RANGE;
     };
     let dragging = false;
     fd.addEventListener('pointerdown', (e) => {
@@ -673,6 +749,7 @@ function buildFaders() {
       dragging = true;
       fd.setPointerCapture(e.pointerId);
       fd.focus({ preventScroll: true });
+      setHot(i);
       setGain(i, fromY(e.clientY));
       e.preventDefault();
     });
@@ -686,42 +763,59 @@ function buildFaders() {
       const v = gainsOf(state.active)[i];
       const map = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5, PageUp: 3, PageDown: -3 };
       if (e.key in map) { setGain(i, v + map[e.key]); e.preventDefault(); }
-      else if (e.key === 'Home') { setGain(i, RANGE); e.preventDefault(); }
-      else if (e.key === 'End') { setGain(i, -RANGE); e.preventDefault(); }
+      else if (e.key === 'Home') { setGain(i, state.limit); e.preventDefault(); }
+      else if (e.key === 'End') { setGain(i, -state.limit); e.preventDefault(); }
       else if (e.key === '0') { setGain(i, 0); e.preventDefault(); }
     });
-    faderEls.push({ read, fd, fill: fd.querySelector('.ffill'), thumb: fd.querySelector('.fthumb') });
+    col.addEventListener('pointerenter', () => setHot(i));
+    col.addEventListener('pointerleave', () => { if (!dragging && document.activeElement !== fd) setHot(-1); });
+    fd.addEventListener('focus', () => setHot(i));
+    fd.addEventListener('blur', () => setHot(-1));
+    faderEls.push({ col, read, fd, fill: fd.querySelector('.ffill'), thumb: fd.querySelector('.fthumb') });
   });
 }
 function renderFaders() {
   const g = gainsOf(state.active);
-  $('faders').classList.toggle('slot-B', state.active === 'B');
+  const box = $('faders');
+  box.classList.toggle('slot-B', state.active === 'B');
+  box.classList.toggle('locked', state.limit < RANGE);
+  $('dots').classList.toggle('slot-B', state.active === 'B');
   faderEls.forEach((e, i) => {
     const v = g[i], pos = (v + RANGE) / (2 * RANGE) * 100;
     e.thumb.style.bottom = pos + '%';
     if (v >= 0) { e.fill.style.bottom = '50%'; e.fill.style.height = (pos - 50) + '%'; }
     else { e.fill.style.bottom = pos + '%'; e.fill.style.height = (50 - pos) + '%'; }
     e.read.textContent = sgn(v);
+    e.fd.setAttribute('aria-valuemin', -state.limit);
+    e.fd.setAttribute('aria-valuemax', state.limit);
     e.fd.setAttribute('aria-valuenow', v);
     e.fd.setAttribute('aria-valuetext', sgn(v) + ' dB');
   });
 }
-function presetName(g) {
-  for (const [n, p] of Object.entries(PRESETS)) if (p.every((v, i) => v === g[i])) return n;
-  return 'Custom';
+
+/* Band info under the scope: what lives in the band you point at */
+function setHot(i) {
+  if (state.hot === i) return;
+  state.hot = i;
+  faderEls.forEach((e, k) => e.col.classList.toggle('hot', k === i));
+  renderBandInfo();
+  scheduleDraw();
 }
-function setGain(i, v) {
-  v = Math.max(-RANGE, Math.min(RANGE, Math.round(v * 2) / 2));
-  const slot = state.slots[state.active];
-  if (slot.gains[i] === v) return;
-  slot.gains[i] = v;
-  slot.name = presetName(slot.gains);
-  afterSlotChange();
+function renderBandInfo() {
+  const box = $('bandInfo'), i = state.hot;
+  box.textContent = '';
+  if (i < 0) {
+    box.textContent = state.blind ? 'Settings are hidden. Switch between 1 and 2 and listen.' : 'Point at a band, or drag its dot, to see what lives there.';
+    return;
+  }
+  const info = BAND_INFO[i];
+  box.append(el('b', null, hz(i) + ' · ' + info.name + '. '), info.what + ' Too much sounds ' + info.more + '; too little, ' + info.less + '.');
+  const fp = state.track && state.track.fp;
+  if (fp) box.append(' This song: ' + dbText(Math.round(vsTypical(fp.rel)[i] * 2) / 2) + ' against the typical song.');
+  if (!state.blind) box.append(' Setting ' + state.active + ': ' + dbText(gainsOf(state.active)[i]) + '.');
 }
-function afterSlotChange() {
-  store.set('slots', state.slots);
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
-}
+
+/* ---------- Settings A and B, presets, auto fit, quick fixes ---------- */
 function renderSlots() {
   const blind = state.blind;
   document.querySelectorAll('.slot').forEach((b, idx) => {
@@ -733,6 +827,8 @@ function renderSlots() {
   const other = state.active === 'A' ? 'B' : 'A';
   $('copySlot').textContent = 'Copy ' + state.active + ' to ' + other;
   $('resetSlot').textContent = 'Reset ' + state.active;
+  $('shapeSlot').textContent = blind ? '' : state.active;
+  document.querySelectorAll('.slotName').forEach((s) => { s.textContent = blind ? '' : state.active; });
   $('lgCurveSw').style.background = blind ? '' : (state.active === 'A' ? 'var(--a)' : 'var(--b)');
   $('miniSlot').textContent = 'Hearing ' + (blind ? String(blind.order.indexOf(state.active) + 1) : state.active);
 }
@@ -744,10 +840,88 @@ function renderLevel() {
 function selectSlot(s) {
   if (state.active === s) return;
   state.active = s;
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
+  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
 }
 function swap() { selectSlot(state.active === 'A' ? 'B' : 'A'); }
 
+function setToolMsg(msg) { $('toolMsg').textContent = msg; }
+/** Remember a setting before a one-click change so Undo can bring it back. */
+function remember(label, slot = state.active) {
+  state.undo = { slot, label, prev: { name: state.slots[slot].name, gains: gainsOf(slot).slice() } };
+  $('undo').disabled = false;
+  $('undo').textContent = 'Undo ' + label;
+}
+function undo() {
+  const u = state.undo;
+  if (!u) return;
+  state.slots[u.slot] = { name: u.prev.name, gains: u.prev.gains.slice() };
+  state.undo = null;
+  $('undo').disabled = true;
+  $('undo').textContent = 'Undo';
+  if (state.active !== u.slot) selectSlot(u.slot);
+  afterSlotChange();
+  setToolMsg('Setting ' + u.slot + ' is back to how it was before the ' + u.label + '.');
+}
+function loadGains(name, gains, label) {
+  remember(label);
+  state.slots[state.active] = { name, gains: gains.slice() };
+  afterSlotChange();
+}
+
+function renderFitAvailability() {
+  const fp = state.track && state.track.fp;
+  $('fitEven').disabled = !fp;
+  $('fitBoost').disabled = !fp;
+  $('fitIntro').textContent = fp
+    ? 'Builds a starting point from how “' + state.track.title + '” compares with a typical song. Every band stays within ±' + Math.min(GUIDE, state.limit) + ' dB.'
+    : 'Builds a starting point from how the song compares with a typical song. Load a song to use it.';
+}
+function applyFit(dev, sign, opts) {
+  const cap = Math.min(GUIDE, state.limit);
+  const g = fitGains(dev, sign, state.fitStrength, cap);
+  const strength = { 0.35: 'gentle', 0.65: 'medium', 1: 'strong' }[state.fitStrength];
+  if (g.every((v) => v === 0)) {
+    setToolMsg(opts.subject + ' already sits close to a typical song, so a ' + strength + ' fit changes nothing. Try Strong, or shape it by ear.');
+    return;
+  }
+  loadGains(opts.name, g, 'auto fit');
+  setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
+}
+function fitSong(sign) {
+  const t = state.track;
+  if (!t || !t.fp) return;
+  applyFit(vsTypical(t.fp.rel), sign, {
+    subject: '“' + t.title + '”',
+    name: sign < 0 ? 'Evened out' : 'Its character',
+    verb: sign < 0 ? 'evens out “' + t.title + '”' : 'brings out what makes “' + t.title + '” different'
+  });
+}
+function applyFix(fx) {
+  const s = state.slots[state.active];
+  let hit = false;
+  const g = s.gains.map((v, i) => {
+    let n = v + fx.delta[i];
+    if (Math.abs(n) > state.limit) { n = Math.sign(n) * state.limit; hit = true; }
+    return Math.round(n * 2) / 2 || 0;
+  });
+  if (g.every((v, i) => v === s.gains[i])) { setToolMsg(fx.label + ': setting ' + state.active + ' is already at the limit there.'); if (hit) hitLimit(); return; }
+  const change = g.map((v, i) => Math.round((v - s.gains[i]) * 2) / 2 || 0);
+  loadGains(presetName(g), g, fx.label.toLowerCase() + ' fix');
+  if (hit && state.limit < RANGE) hitLimit();
+  setToolMsg(fx.label + ' (' + fx.hint.toLowerCase() + '): ' + describeGains(change) + ' on setting ' + state.active + '. Click again for more.');
+}
+function buildFixes() {
+  const box = $('fixes');
+  FIXES.forEach((fx) => {
+    const b = el('button', 'fix', fx.label);
+    b.type = 'button';
+    b.title = fx.hint;
+    b.addEventListener('click', () => { ensureCtx(); applyFix(fx); });
+    box.append(b);
+  });
+}
+
+/* ---------- Blind test ---------- */
 function startBlind() {
   if (!state.track) return;
   ensureCtx();
@@ -758,11 +932,13 @@ function startBlind() {
   $('blindStart').hidden = true;
   $('blindPick').hidden = false;
   $('blindResult').hidden = true;
-  $('blindIntro').textContent = 'Switch between 1 and 2 as often as you like. Both play at the same loudness.';
+  $('shapeHidden').hidden = false;
+  $('limitNote').hidden = true;
+  $('blindIntro').textContent = 'Switch between 1 and 2 as often as you like, with the buttons under the faders or the X key. Both play at the same loudness.';
   $('mask').hidden = false;
   $('faders').setAttribute('aria-hidden', 'true');
   state.active = state.blind.order[0];
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
+  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
   if (!state.playing) play();
 }
 function endBlind(pickIdx) {
@@ -774,9 +950,10 @@ function endBlind(pickIdx) {
   document.body.classList.remove('is-blind');
   $('blindStart').hidden = false;
   $('blindPick').hidden = true;
+  $('shapeHidden').hidden = true;
   $('mask').hidden = true;
   $('faders').removeAttribute('aria-hidden');
-  $('blindIntro').textContent = 'Blind test: hide which setting is which, listen to both, then pick one.';
+  $('blindIntro').textContent = 'Hide which setting is which, listen to both at the same loudness, then pick the one you prefer.';
   if (pickIdx != null) {
     const win = b.order[pickIdx], lose = b.order[1 - pickIdx];
     const r = $('blindResult');
@@ -784,10 +961,22 @@ function endBlind(pickIdx) {
     r.textContent = 'You picked ' + (pickIdx + 1) + ', which was setting ' + win + ' (' + state.slots[win].name + '). Number ' + (2 - pickIdx) + ' was ' + lose + ' (' + state.slots[lose].name + ').';
     state.active = win;
   }
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
+  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
 }
 
-/* ---------- Where this song lives ---------- */
+/* ---------- This song against a typical song ---------- */
+function balanceSentence(dev, subject) {
+  const out = dev.map((v, i) => [v, i]).filter(([v, i]) => outside(v, i));
+  const more = out.filter(([v]) => v > 0).sort((a, b) => b[0] - a[0]).slice(0, 2);
+  const less = out.filter(([v]) => v < 0).sort((a, b) => a[0] - b[0]).slice(0, 2);
+  const phrase = (list) => list.map(([v, i]) => BAND_NAMES[i] + ' (' + sgn(v, 0) + ' dB at ' + hz(i) + ')').join(' and ');
+  if (!more.length && !less.length) return { text: subject.charAt(0).toUpperCase() + subject.slice(1) + ' is balanced like most songs: every octave sits inside the typical range.', more, less };
+  let s = 'Compared with most songs, ' + subject + ' has ';
+  if (more.length) s += 'more ' + phrase(more);
+  if (more.length && less.length) s += ' and ';
+  if (less.length) s += 'less ' + phrase(less);
+  return { text: s + '.', more, less };
+}
 function renderFingerprint() {
   const box = $('fpChart'), fp = state.track && state.track.fp;
   if (!fp) {
@@ -795,27 +984,152 @@ function renderFingerprint() {
     $('fpText').textContent = state.track ? 'This song couldn’t be analysed in this browser.' : 'Analysing the song…';
     return;
   }
-  const W = 400, H = 190, top = 20, bottom = 34, mid = top + (H - top - bottom) / 2, half = (H - top - bottom) / 2, scale = 15;
-  const order = fp.rel.map((v, i) => [v, i]).filter(([, i]) => i < 9).sort((a, b) => b[0] - a[0]);
-  const hot = new Set([order[0][1], order[1][1]]);
-  const cw = W / 10;
-  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Energy per octave for this song">';
-  fp.rel.forEach((v, i) => {
-    const c = Math.max(-scale, Math.min(scale, v)), h = Math.abs(c) / scale * half;
-    const x = i * cw + cw * 0.22, w = cw * 0.56, y = c >= 0 ? mid - h : mid;
-    s += '<rect class="fp-bar' + (hot.has(i) ? ' hot' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + Math.max(1, h).toFixed(1) + '" rx="2"/>';
-    const vy = c >= 0 ? y - 4 : y + h + 11;
-    s += '<text class="fp-val" x="' + (i * cw + cw / 2).toFixed(1) + '" y="' + vy.toFixed(1) + '" text-anchor="middle">' + sgn(v, 0) + '</text>';
-    s += '<text class="fp-lab" x="' + (i * cw + cw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + BAND_LABELS[i] + '</text>';
+  const dev = vsTypical(fp.rel);
+  renderBalance(box, dev);
+  const { text, more } = balanceSentence(dev, 'this song');
+  let tail = '';
+  if (more.length) {
+    const top = more[0][1];
+    tail = top <= 2 ? ' Its low end carries a lot of the song, so headphones that are weak in the bass will change it the most.'
+      : top >= 7 ? ' Its treble stands out, so headphones with a sharp or dull top end will change it the most.'
+        : ' Its midrange stands out, so headphones with an uneven midrange will change it the most.';
+  }
+  if (state.track.source === 'file') tail += ' The typical song was measured from MP3 previews, which lose most of the 16 kHz band, so a full-quality file can look brighter there.';
+  $('fpText').textContent = text + tail;
+}
+
+/* ---------- Your artists’ sound ---------- */
+const PER_ARTIST = 4;
+const loadAfp = () => { const c = store.get('afp', {}); return c && typeof c === 'object' ? c : {}; };
+function saveAfp(cache) {
+  const keys = Object.keys(cache);
+  if (keys.length > 160) keys.sort((a, b) => (cache[b].t || 0) - (cache[a].t || 0)).slice(160).forEach((k) => delete cache[k]);
+  store.set('afp', cache);
+}
+function artistRels(id, cache) {
+  return Object.values(cache).filter((e) => e && e.a === id && Array.isArray(e.r) && e.r.length === 10).sort((p, q) => (q.t || 0) - (p.t || 0)).slice(0, PER_ARTIST).map((e) => e.r);
+}
+const meanOf = (rows) => rows[0].map((_, i) => rows.reduce((s, r) => s + r[i], 0) / rows.length);
+function artistSeries() {
+  const cache = loadAfp();
+  return state.picks.map((p) => {
+    const rels = artistRels(p.id, cache);
+    return { id: p.id, name: p.name, slot: p.c, n: rels.length, dev: rels.length ? vsTypical(meanOf(rels)) : null };
   });
-  s += '<line class="fp-zero" x1="0" x2="' + W + '" y1="' + mid + '" y2="' + mid + '"/></svg>';
-  box.innerHTML = s;
-  const [a, b] = [order[0][1], order[1][1]].sort((x, y) => x - y);
-  const low = b <= 3, high = a >= 6;
-  $('fpText').textContent = 'Most of the energy sits in the ' + BAND_NAMES[a] + ' (' + BAND_LABELS[a] + ' Hz) and ' + BAND_NAMES[b] + ' (' + BAND_LABELS[b] + ' Hz). ' +
-    (low ? 'Earbuds and small headphones often roll off down here, so this song loses the most on them.'
-      : high ? 'Headphones with harsh or dull treble will change this song the most.'
-        : 'Headphones with an uneven midrange will change this song the most.');
+}
+function renderArtistsPanel() {
+  const picks = state.picks, A = state.art;
+  $('artCount').textContent = picks.length ? picks.length + ' of 5' : '';
+  const all = artistSeries(), ready = all.filter((s) => s.dev), missing = all.filter((s) => !s.dev);
+  const intro = $('artIntro');
+  if (!picks.length) {
+    intro.textContent = 'Pick up to five artists you listen to most: open an artist on the left and choose “Add to your artists”. Earprint then measures their top songs and shows the balance they share, so you can fit one setting to all of them.';
+  } else if (A.running) {
+    intro.textContent = 'Measuring ' + PER_ARTIST + ' top songs per artist. Nothing plays aloud, and only the numbers are kept.';
+  } else if (missing.length) {
+    intro.textContent = (ready.length ? 'Not measured yet: ' + missing.map((s) => s.name).join(', ') + '. ' : '') +
+      'Earprint measures ' + PER_ARTIST + ' top songs per artist from their Deezer previews. Nothing plays aloud, it uses about 2 MB of data per artist, and only the numbers are kept.' + (A.note ? ' ' + A.note : '');
+  } else {
+    intro.textContent = 'Based on up to ' + PER_ARTIST + ' top songs per artist, measured from their Deezer previews.' + (A.note ? ' ' + A.note : '');
+  }
+  $('artActions').hidden = !picks.length || (!missing.length && !A.running);
+  $('artRun').hidden = A.running;
+  $('artRun').disabled = state.deezer === false;
+  $('artRun').textContent = ready.length ? 'Measure ' + missing.length + ' more ' + (missing.length === 1 ? 'artist' : 'artists') : 'Measure their top songs';
+  $('artCancel').hidden = !A.running;
+  $('artProgress').hidden = !A.running;
+  if (A.running) $('artBar').style.width = (A.total ? A.done / A.total * 100 : 0) + '%';
+
+  const has = ready.length > 0;
+  $('artLegend').hidden = !has;
+  $('artChart').hidden = !has;
+  $('artText').hidden = !has;
+  $('artFit').hidden = !has;
+  if (!has) { $('artChart').textContent = ''; return; }
+  const avg = meanOf(ready.map((s) => s.dev));
+  state.art.avg = avg;
+  const leg = $('artLegend');
+  leg.textContent = '';
+  const li = (cls, name, note) => {
+    const l = el('li');
+    l.append(el('i', 'sw ' + cls), el('span', null, name));
+    if (note) l.append(el('span', 'm', note));
+    leg.append(l);
+  };
+  if (ready.length > 1) li('avg', 'Average of your artists');
+  ready.forEach((s) => li('s' + s.slot, s.name, s.n < PER_ARTIST ? s.n + (s.n === 1 ? ' song' : ' songs') : ''));
+  renderArtists($('artChart'), ready, ready.length > 1 ? avg : null);
+  const subject = ready.length > 1 ? 'your artists’ music' : ready[0].name + '’s music';
+  let text = balanceSentence(avg, subject).text;
+  if (ready.length > 1) {
+    // Compare each band's spread with how much songs normally vary there (the typical range).
+    const spread = avg.map((_, i) => { const v = ready.map((s) => s.dev[i]); return Math.max(...v) - Math.min(...v); });
+    const usual = (i) => Math.max(4, TYPICAL.rel.hi[i] - TYPICAL.rel.lo[i]);
+    const wide = spread.map((v, i) => [v / usual(i), v, i]).sort((a, b) => b[0] - a[0])[0];
+    text += wide[0] <= 1
+      ? ' They’re alike across the whole range, so one setting should suit all of them.'
+      : ' They differ most at ' + hz(wide[2]) + ' (' + Math.round(wide[1]) + ' dB apart), so one setting is a compromise there.';
+  } else {
+    text += ' Add more artists to see what they have in common.';
+  }
+  $('artText').textContent = text;
+}
+async function runArtists() {
+  if (state.art.running || !state.picks.length) return;
+  const tok = ++state.art.token;
+  Object.assign(state.art, { running: true, done: 0, total: 0, note: '' });
+  renderArtistsPanel();
+  const cache = loadAfp();
+  const jobs = [];
+  let failed = 0;
+  for (const p of state.picks) {
+    if (artistRels(p.id, cache).length) continue;
+    try {
+      const top = await dz.artistTop(p.id, 10);
+      top.filter(playable).slice(0, PER_ARTIST).forEach((t) => jobs.push({ p, t }));
+    } catch (e) { failed++; }
+    if (tok !== state.art.token) return;
+  }
+  state.art.total = jobs.length;
+  renderArtistsPanel();
+  const worker = async () => {
+    while (jobs.length && tok === state.art.token) {
+      const { p, t } = jobs.shift();
+      $('artStatus').textContent = 'Measuring “' + (t.title_short || t.title) + '” by ' + p.name + '…';
+      try {
+        const res = await fetch(t.preview, { cache: 'no-store' });
+        if (!res.ok) throw new Error(res.status);
+        const fp = await analyse(await decode(await res.arrayBuffer()));
+        if (fp && tok === state.art.token) {
+          cache[t.id] = { a: p.id, t: Date.now(), r: fp.rel.map((v) => Math.round(v * 10) / 10) };
+          saveAfp(cache);
+        }
+      } catch (e) { failed++; }
+      state.art.done++;
+      if (tok === state.art.token) { $('artBar').style.width = (state.art.done / Math.max(1, state.art.total) * 100) + '%'; }
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  if (tok !== state.art.token) return;
+  state.art.running = false;
+  state.art.note = failed ? failed + (failed === 1 ? ' song' : ' songs') + ' couldn’t be measured.' : '';
+  renderArtistsPanel();
+}
+function cancelArtists() {
+  state.art.token++;
+  state.art.running = false;
+  state.art.note = 'Stopped. The songs measured so far are kept.';
+  renderArtistsPanel();
+}
+function fitArtists(sign) {
+  const avg = state.art.avg;
+  if (!avg) return;
+  const many = state.picks.length > 1;
+  applyFit(avg, sign, {
+    subject: many ? 'Your artists’ music' : 'This artist’s music',
+    name: sign < 0 ? 'Artists, evened' : 'Artists’ character',
+    verb: sign < 0 ? 'evens out your artists' : 'brings out what your artists share'
+  });
 }
 
 /* ---------- Export ---------- */
@@ -851,11 +1165,15 @@ function renderExport() {
   $('dlOut').hidden = !ex.download;
 }
 
-/* ---------- Frequency scope ---------- */
-const N_VIS = 160;
-const VIS_F = new Float32Array(N_VIS).map((_, i) => 20 * Math.pow(1000, i / (N_VIS - 1)));
-const SPEC_MIN = -105, SPEC_MAX = -18, CURVE_DB = 15;
-const canvas = $('scope'), g2 = canvas.getContext('2d');
+/* ---------- Frequency scope ----------
+   One dB scale for everything: the song and the typical song are tilted by 3 dB per octave and
+   centred on the song's average level, so the EQ curve's dB mean the same as the song's. */
+const F_LO = 32 / Math.SQRT2, F_HI = 16000 * Math.SQRT2, OCTS = Math.log2(F_HI / F_LO);
+const DB_TOP = 15, DB_BOT = -27;
+const N_VIS = 170;
+const VIS_F = new Float32Array(N_VIS).map((_, i) => F_LO * Math.pow(2, i / (N_VIS - 1) * OCTS));
+const VIS_TILT = Array.from(VIS_F, tiltDb);
+const canvas = $('scope'), g2 = canvas.getContext('2d'), scopeWrap = $('scopeWrap'), eqArea = $('eqArea');
 let raf = 0, drawQueued = false, peaks = null, lastVis = null, powBuf = null;
 const colors = {};
 function readColors() {
@@ -876,6 +1194,20 @@ function fitCanvas(c) {
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; return true; }
   return false;
 }
+/** Scope geometry in CSS pixels (k = 1) or canvas pixels (k = device pixel ratio). */
+let gutter = 46;
+const readGutter = () => { gutter = parseFloat(getComputedStyle(eqArea).getPropertyValue('--gutter')) || 46; };
+function geom(k = 1) {
+  const r = canvas.getBoundingClientRect();
+  const w = r.width * k, h = r.height * k, padT = 10 * k, padB = 10 * k;
+  const plotW = Math.max(10, w - gutter * k), plotH = Math.max(10, h - padT - padB);
+  return {
+    w, h, padT, plotW, plotH, k,
+    X: (f) => Math.log2(f / F_LO) / OCTS * plotW,
+    Y: (db) => padT + (DB_TOP - Math.max(DB_BOT, Math.min(DB_TOP, db))) / (DB_TOP - DB_BOT) * plotH,
+    dbAt: (y) => DB_TOP - (y - padT) / plotH * (DB_TOP - DB_BOT)
+  };
+}
 function scheduleDraw() {
   if (state.playing || drawQueued) return;
   drawQueued = true;
@@ -891,115 +1223,187 @@ function liveVis() {
   const binHz = ctx.sampleRate / analyser.fftSize;
   if (!powBuf || powBuf.length !== specBuf.length) powBuf = new Float64Array(specBuf.length);
   for (let k = 0; k < specBuf.length; k++) powBuf[k] = isFinite(specBuf[k]) ? Math.pow(10, specBuf[k] / 10) : 0;
+  const off = state.track && state.track.bal ? state.track.bal.offset : -62;
   const out = new Float32Array(N_VIS);
-  for (let i = 0; i < N_VIS; i++) out[i] = 10 * Math.log10(Math.max(meanPower(powBuf, VIS_F[i], 1 / 14, binHz), 1e-14));
+  for (let i = 0; i < N_VIS; i++) out[i] = 10 * Math.log10(Math.max(meanPower(powBuf, VIS_F[i], 1 / 14, binHz), 1e-14)) + VIS_TILT[i] - off;
   return out;
+}
+function line(G, fs, vals, n) {
+  g2.beginPath();
+  for (let i = 0; i < n; i++) { const x = G.X(fs(i)), y = G.Y(vals[i]); if (i) g2.lineTo(x, y); else g2.moveTo(x, y); }
 }
 function drawScope(live) {
   const W = canvas.width, H = canvas.height;
   if (W < 2) return;
   const dpr = W / Math.max(1, canvas.getBoundingClientRect().width);
-  const padB = 20 * dpr, padT = 10 * dpr, plotH = H - padB - padT, padR = 44 * dpr, plotW = W - padR;
-  const X = (f) => Math.log(f / 20) / Math.log(1000) * plotW;
-  const YS = (db) => padT + plotH - (Math.max(SPEC_MIN, Math.min(SPEC_MAX, db)) - SPEC_MIN) / (SPEC_MAX - SPEC_MIN) * plotH;
-  const YC = (db) => padT + plotH / 2 - Math.max(-CURVE_DB, Math.min(CURVE_DB, db)) / CURVE_DB * (plotH / 2 - 6 * dpr);
+  const G = geom(dpr);
   g2.clearRect(0, 0, W, H);
-
-  g2.lineWidth = 1;
-  g2.font = (10.5 * dpr) + 'px "JetBrains Mono", ui-monospace, monospace';
-  g2.textBaseline = 'alphabetic';
-  [50, 100, 200, 500, 1000, 2000, 5000, 10000].forEach((f) => {
-    const x = Math.round(X(f)) + 0.5;
-    g2.strokeStyle = rgba(colors['--muted'], 0.16);
-    g2.beginPath(); g2.moveTo(x, padT); g2.lineTo(x, padT + plotH); g2.stroke();
-    g2.fillStyle = colors['--muted']; g2.textAlign = 'center';
-    g2.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), x, H - 6 * dpr);
-  });
-  g2.textAlign = 'left';
-  g2.fillStyle = colors['--muted'];
-  g2.fillText('Hz', 4 * dpr, H - 6 * dpr);
-  [12, 6, 0, -6, -12].forEach((db) => {
-    const y = Math.round(YC(db)) + 0.5;
-    g2.strokeStyle = rgba(colors['--muted'], db === 0 ? 0.42 : 0.14);
-    g2.setLineDash(db === 0 ? [] : [3 * dpr, 4 * dpr]);
-    g2.beginPath(); g2.moveTo(0, y); g2.lineTo(plotW, y); g2.stroke();
-    g2.setLineDash([]);
-    g2.fillText((db > 0 ? '+' : db < 0 ? '−' : ' ') + Math.abs(db) + ' dB', plotW + 6 * dpr, y + 3.5 * dpr);
-  });
-
   const blind = !!state.blind;
+
+  // Band columns: the one you point at is lightly shaded; a hairline marks each band centre.
+  if (state.hot >= 0) {
+    const f = BANDS[state.hot];
+    g2.fillStyle = rgba(colors['--ink'], 0.05);
+    g2.fillRect(G.X(f / Math.SQRT2), 0, G.X(f * Math.SQRT2) - G.X(f / Math.SQRT2), H);
+  }
+  g2.lineWidth = 1;
+  BANDS.forEach((f) => {
+    const x = Math.round(G.X(f)) + 0.5;
+    g2.strokeStyle = rgba(colors['--muted'], 0.13);
+    g2.beginPath(); g2.moveTo(x, G.padT); g2.lineTo(x, G.padT + G.plotH); g2.stroke();
+  });
+  g2.font = (10.5 * dpr) + 'px "JetBrains Mono", ui-monospace, monospace';
+  g2.textBaseline = 'middle';
+  g2.textAlign = 'left';
+  [12, 6, 0, -6, -12, -18, -24].forEach((db) => {
+    const y = Math.round(G.Y(db)) + 0.5;
+    g2.strokeStyle = rgba(colors['--muted'], db === 0 ? 0.5 : 0.13);
+    g2.setLineDash(db === 0 ? [] : [3 * dpr, 4 * dpr]);
+    g2.beginPath(); g2.moveTo(0, y); g2.lineTo(G.plotW, y); g2.stroke();
+    g2.setLineDash([]);
+    g2.fillStyle = colors['--muted'];
+    g2.fillText(db === 0 ? '0 dB' : sgn(db, 0), G.plotW + 6 * dpr, y);
+  });
+
+  g2.save();
+  g2.beginPath(); g2.rect(0, 0, G.plotW, H); g2.clip();
+
+  // The typical song: middle half of 128 songs, with the median dotted.
+  if (state.layers.typical) {
+    const tc = TYPICAL.curve, n = tc.med.length;
+    g2.beginPath();
+    for (let k = 0; k < n; k++) { const x = G.X(typicalF(k)), y = G.Y(tc.hi[k]); if (k) g2.lineTo(x, y); else g2.moveTo(x, y); }
+    for (let k = n - 1; k >= 0; k--) g2.lineTo(G.X(typicalF(k)), G.Y(tc.lo[k]));
+    g2.closePath();
+    g2.fillStyle = rgba(colors['--muted'], 0.15); g2.fill();
+    line(G, typicalF, tc.med, n);
+    g2.setLineDash([1.5 * dpr, 3 * dpr]);
+    g2.strokeStyle = rgba(colors['--muted'], 0.9); g2.lineWidth = 1.4 * dpr; g2.stroke();
+    g2.setLineDash([]);
+  }
+
+  // Live sound (after the EQ), filled.
   if (state.layers.spectrum && !blind) {
     let vis = null;
     if (live && analyser) {
       vis = liveVis();
       lastVis = vis;
       if (!peaks) peaks = Float32Array.from(vis);
-      for (let i = 0; i < N_VIS; i++) peaks[i] = Math.max(vis[i], peaks[i] - 0.5);
+      for (let i = 0; i < N_VIS; i++) peaks[i] = Math.max(vis[i], peaks[i] - 0.35);
     } else vis = lastVis;
     if (vis) {
-      const grad = g2.createLinearGradient(0, padT, 0, padT + plotH);
-      grad.addColorStop(0, rgba(colors['--spec'], live ? 0.55 : 0.25));
-      grad.addColorStop(1, rgba(colors['--spec'], 0.04));
-      g2.beginPath(); g2.moveTo(0, padT + plotH);
-      for (let i = 0; i < N_VIS; i++) g2.lineTo(X(VIS_F[i]), YS(vis[i]));
-      g2.lineTo(plotW, padT + plotH); g2.closePath();
+      const grad = g2.createLinearGradient(0, G.padT, 0, G.padT + G.plotH);
+      grad.addColorStop(0, rgba(colors['--spec'], live ? 0.42 : 0.18));
+      grad.addColorStop(1, rgba(colors['--spec'], 0.03));
+      g2.beginPath(); g2.moveTo(0, G.padT + G.plotH);
+      for (let i = 0; i < N_VIS; i++) g2.lineTo(G.X(VIS_F[i]), G.Y(vis[i]));
+      g2.lineTo(G.plotW, G.padT + G.plotH); g2.closePath();
       g2.fillStyle = grad; g2.fill();
-      g2.beginPath();
-      for (let i = 0; i < N_VIS; i++) { const x = X(VIS_F[i]), y = YS(vis[i]); if (i) g2.lineTo(x, y); else g2.moveTo(x, y); }
-      g2.strokeStyle = rgba(colors['--spec'], live ? 0.85 : 0.4); g2.lineWidth = 1.25 * dpr; g2.stroke();
+      line(G, (i) => VIS_F[i], vis, N_VIS);
+      g2.strokeStyle = rgba(colors['--spec'], live ? 0.7 : 0.3); g2.lineWidth = 1.1 * dpr; g2.stroke();
       if (peaks && live) {
-        g2.beginPath();
-        for (let i = 0; i < N_VIS; i++) { const x = X(VIS_F[i]), y = YS(peaks[i]); if (i) g2.lineTo(x, y); else g2.moveTo(x, y); }
-        g2.strokeStyle = rgba(colors['--spec'], 0.3); g2.lineWidth = 1 * dpr; g2.stroke();
+        line(G, (i) => VIS_F[i], peaks, N_VIS);
+        g2.strokeStyle = rgba(colors['--spec'], 0.25); g2.lineWidth = 1 * dpr; g2.stroke();
       }
     }
   }
 
-  const fp = state.track && state.track.fp;
-  if (state.layers.average && fp) {
-    g2.beginPath();
-    for (let i = 0; i < N_CURVE; i++) { const x = X(CURVE_F[i]), y = YS(fp.avgDb[i]); if (i) g2.lineTo(x, y); else g2.moveTo(x, y); }
-    g2.setLineDash([4 * dpr, 3 * dpr]);
-    g2.strokeStyle = rgba(colors['--muted'], 0.95); g2.lineWidth = 1.4 * dpr; g2.stroke();
-    g2.setLineDash([]);
+  // The song's average balance, before EQ.
+  const bal = state.track && state.track.bal;
+  if (state.layers.average && bal) {
+    line(G, (i) => CURVE_F[i], bal.db, N_CURVE);
+    g2.strokeStyle = rgba(colors['--ink'], 0.78); g2.lineWidth = 1.8 * dpr; g2.lineJoin = 'round'; g2.stroke();
   }
 
+  // EQ curves: the other setting dashed, the selected one solid (its dots are draggable elements).
   if (state.layers.curve && !blind) {
     const other = state.active === 'A' ? 'B' : 'A';
     [[other, false], [state.active, true]].forEach(([s, on]) => {
       const db = curveOf(s), col = colors[s === 'A' ? '--a' : '--b'];
-      g2.beginPath();
-      for (let i = 0; i < N_CURVE; i++) { const x = X(CURVE_F[i]), y = YC(db[i]); if (i) g2.lineTo(x, y); else g2.moveTo(x, y); }
+      line(G, (i) => CURVE_F[i], db, N_CURVE);
       g2.setLineDash(on ? [] : [6 * dpr, 4 * dpr]);
-      g2.strokeStyle = on ? col : rgba(col, 0.55); g2.lineWidth = (on ? 2.6 : 1.6) * dpr; g2.stroke();
+      g2.strokeStyle = on ? col : rgba(col, 0.6); g2.lineWidth = (on ? 2.6 : 1.6) * dpr; g2.stroke();
       g2.setLineDash([]);
-      if (on) {
-        BANDS.forEach((f, i) => {
-          g2.beginPath(); g2.arc(X(f), YC(gainsOf(s)[i]), 3 * dpr, 0, Math.PI * 2);
-          g2.fillStyle = col; g2.fill();
-        });
-      }
       g2.font = '600 ' + (11 * dpr) + 'px "Instrument Sans", system-ui, sans-serif';
-      g2.textAlign = 'left';
-      g2.fillStyle = on ? col : rgba(col, 0.7);
-      g2.fillText(s, (on ? 6 : 20) * dpr, YC(db[0]) - 6 * dpr);
+      g2.textAlign = 'left'; g2.textBaseline = 'alphabetic';
+      g2.fillStyle = on ? col : rgba(col, 0.75);
+      g2.fillText(s, (on ? 5 : 17) * dpr, G.Y(db[Math.round(N_CURVE * 0.02)]) - 7 * dpr);
     });
   }
+  g2.restore();
 
-  const msg = !state.track ? 'Preparing the demo loop…' : blind ? 'Hidden during the blind test. Just listen.' : '';
+  const msg = !state.track ? 'Preparing the demo loop…' : blind ? 'EQ curves are hidden during the blind test. Just listen.' : '';
   if (msg) {
     g2.font = (13 * dpr) + 'px "Instrument Sans", system-ui, sans-serif';
     g2.textAlign = 'center';
     g2.textBaseline = 'middle';
-    const tw = g2.measureText(msg).width, bw = tw + 28 * dpr, bh = 30 * dpr, bx = plotW / 2 - bw / 2, by = padT + plotH / 2 - bh / 2;
+    const tw = g2.measureText(msg).width, bw = tw + 28 * dpr, bh = 30 * dpr, bx = G.plotW / 2 - bw / 2, by = G.padT + G.plotH * 0.3 - bh / 2;
     g2.fillStyle = rgba(colors['--panel'], 0.92);
     g2.beginPath();
     if (g2.roundRect) g2.roundRect(bx, by, bw, bh, 8 * dpr); else g2.rect(bx, by, bw, bh);
     g2.fill();
     g2.fillStyle = colors['--muted'];
-    g2.fillText(msg, plotW / 2, padT + plotH / 2);
+    g2.fillText(msg, G.plotW / 2, G.padT + G.plotH * 0.3);
     g2.textBaseline = 'alphabetic';
   }
+  placeDots();
+}
+
+/* Draggable dots on the selected setting's curve */
+const dotEls = [];
+function buildDots() {
+  const box = $('dots');
+  BANDS.forEach((f, i) => {
+    const d = el('div', 'dot');
+    const v = el('span', 'dv');
+    d.append(v);
+    box.append(d);
+    let drag = null;
+    d.addEventListener('pointerdown', (e) => {
+      if (state.blind || e.button > 0) return;
+      ensureCtx();
+      const G = geom(), r = canvas.getBoundingClientRect();
+      drag = { offset: e.clientY - (r.top + G.Y(gainsOf(state.active)[i])) };
+      d.setPointerCapture(e.pointerId);
+      d.classList.add('drag');
+      setHot(i);
+      e.preventDefault();
+    });
+    d.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const G = geom(), r = canvas.getBoundingClientRect();
+      setGain(i, G.dbAt(e.clientY - r.top - drag.offset));
+    });
+    const end = () => { if (!drag) return; drag = null; d.classList.remove('drag'); };
+    d.addEventListener('pointerup', end);
+    d.addEventListener('pointercancel', end);
+    d.addEventListener('lostpointercapture', end);
+    d.addEventListener('dblclick', () => { if (!state.blind) setGain(i, 0); });
+    d.addEventListener('pointerenter', () => setHot(i));
+    dotEls.push({ d, v });
+  });
+}
+function placeDots() {
+  if (state.blind || !state.layers.curve) { dotEls.forEach((o) => { o.d.hidden = true; }); return; }
+  const G = geom(), g = gainsOf(state.active);
+  dotEls.forEach((o, i) => {
+    o.d.hidden = false;
+    o.d.style.transform = '';
+    o.d.style.left = G.X(BANDS[i]).toFixed(1) + 'px';
+    o.d.style.top = G.Y(g[i]).toFixed(1) + 'px';
+    o.v.textContent = sgn(g[i]) + ' dB';
+  });
+}
+function bindScopeHover() {
+  // Each band owns one octave of the scope, from its centre ÷ √2 to its centre × √2.
+  const band = (clientX) => {
+    const G = geom(), r = canvas.getBoundingClientRect(), x = clientX - r.left;
+    if (x < 0 || x > G.plotW) return -1;
+    return Math.max(0, Math.min(9, Math.floor(x / G.plotW * OCTS)));
+  };
+  scopeWrap.addEventListener('pointermove', (e) => { if (e.target === canvas) setHot(band(e.clientX)); });
+  scopeWrap.addEventListener('pointerdown', (e) => { if (e.target === canvas) setHot(band(e.clientX)); });
+  scopeWrap.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !document.querySelector('.dot.drag')) setHot(-1); });
 }
 
 /* ---------- Waveform strip and loop section ---------- */
@@ -1205,18 +1609,21 @@ function bindDrop() {
 /* ---------- Wiring ---------- */
 function init() {
   buildFaders();
+  buildDots();
+  buildFixes();
   buildTabs();
   bindWave();
   bindDrop();
+  bindScopeHover();
 
   const sel = $('preset');
   sel.innerHTML = '<option value="">Load a preset…</option>' + Object.keys(PRESETS).map((n) => '<option>' + n + '</option>').join('');
   sel.addEventListener('change', () => {
     const n = sel.value;
     if (!n) return;
-    state.slots[state.active] = { name: n, gains: PRESETS[n].slice() };
     sel.value = '';
-    afterSlotChange();
+    loadGains(n, PRESETS[n], 'preset');
+    setToolMsg('Loaded “' + n + '” into setting ' + state.active + '.');
   });
   $('match').checked = state.match;
   $('match').addEventListener('change', (e) => {
@@ -1230,26 +1637,50 @@ function init() {
   }));
   $('swap').addEventListener('click', () => { ensureCtx(); swap(); });
   $('copySlot').addEventListener('click', () => {
-    const other = state.active === 'A' ? 'B' : 'A';
-    state.slots[other] = { name: state.slots[state.active].name, gains: gainsOf(state.active).slice() };
+    const from = state.active, to = from === 'A' ? 'B' : 'A';
+    remember('copy', to);
+    state.slots[to] = { name: state.slots[from].name, gains: gainsOf(from).slice() };
     afterSlotChange();
+    setToolMsg('Copied ' + from + ' to ' + to + '. Change one of them, then switch between them to compare.');
   });
   $('resetSlot').addEventListener('click', () => {
-    state.slots[state.active] = { name: 'Flat', gains: PRESETS['Flat'].slice() };
-    afterSlotChange();
+    loadGains('Flat', PRESETS['Flat'], 'reset');
+    setToolMsg('Setting ' + state.active + ' is flat again.');
   });
+  $('undo').addEventListener('click', undo);
+  $('fitEven').addEventListener('click', () => { ensureCtx(); fitSong(-1); });
+  $('fitBoost').addEventListener('click', () => { ensureCtx(); fitSong(1); });
+  document.querySelectorAll('input[name="fitStrength"]').forEach((r) => {
+    r.checked = +r.value === state.fitStrength;
+    r.addEventListener('change', () => { if (r.checked) { state.fitStrength = +r.value; store.set('fitStrength', state.fitStrength); } });
+  });
+  $('allow12').checked = state.limit === RANGE;
+  $('allow12').addEventListener('change', (e) => setLimit(e.target.checked ? RANGE : SOFT));
+  $('limitAllow').addEventListener('click', () => setLimit(RANGE));
+  $('limitKeep').addEventListener('click', () => { $('limitNote').hidden = true; });
   $('blindStart').addEventListener('click', startBlind);
   $('blindCancel').addEventListener('click', () => endBlind(null));
   document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => endBlind(+b.dataset.pick)));
 
+  $('artRun').addEventListener('click', runArtists);
+  $('artCancel').addEventListener('click', cancelArtists);
+  $('artEven').addEventListener('click', () => { ensureCtx(); fitArtists(-1); });
+  $('artBoost').addEventListener('click', () => { ensureCtx(); fitArtists(1); });
+  $('toArtists').addEventListener('click', (e) => {
+    e.preventDefault();
+    const p = $('artistsPanel');
+    p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    p.focus({ preventScroll: true });
+  });
+
   $('play').addEventListener('click', () => { ensureCtx(); togglePlay(); });
   $('miniPlay').addEventListener('click', () => { ensureCtx(); togglePlay(); });
   $('miniSwap').addEventListener('click', () => { ensureCtx(); swap(); });
-  $('miniJump').addEventListener('click', () => { $('scopeLabel').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('miniJump').addEventListener('click', () => { document.querySelector('.player').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   window.addEventListener('scroll', renderMini, { passive: true });
   window.addEventListener('resize', renderMini);
   $('vol').addEventListener('input', (e) => { if (master) master.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.02); });
-  [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgCurve', 'curve']].forEach(([id, k]) => {
+  [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgTypical', 'typical'], ['lgCurve', 'curve']].forEach(([id, k]) => {
     $(id).checked = state.layers[k];
     $(id).addEventListener('change', (e) => {
       state.layers[k] = e.target.checked;
@@ -1334,18 +1765,22 @@ function init() {
     else if (e.key === ' ' && (t === document.body || t.classList.contains('fader') || t === waveEl)) { e.preventDefault(); ensureCtx(); togglePlay(); }
   });
 
-  const ro = new ResizeObserver(() => {
-    if (fitCanvas(canvas)) scheduleDraw();
-    if (fitCanvas(waveCanvas)) { waveBase = null; drawWave(); }
+  const ro = new ResizeObserver((entries) => {
+    entries.forEach((en) => {
+      if (en.target === canvas) { readGutter(); fitCanvas(canvas); scheduleDraw(); placeDots(); }
+      else if (en.target === waveCanvas) { if (fitCanvas(waveCanvas)) { waveBase = null; drawWave(); } }
+      else if (en.target === $('fpChart')) { if (state.track && state.track.fp) renderFingerprint(); }
+      else if (en.target === $('artChart')) { if (!$('artChart').hidden) renderArtistsPanel(); }
+    });
   });
-  ro.observe(canvas);
-  ro.observe(waveCanvas);
+  [canvas, waveCanvas, $('fpChart'), $('artChart')].forEach((n) => ro.observe(n));
   readColors();
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
   new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => scheduleDraw());
 
-  renderFaders(); renderSlots(); renderLevel(); renderExport(); renderPicks(); renderLoop(); renderGenreChips();
+  readGutter();
+  renderFaders(); renderSlots(); renderLevel(); renderExport(); renderPicks(); renderLoop(); renderGenreChips(); renderBandInfo(); renderFitAvailability();
   fitCanvas(canvas); fitCanvas(waveCanvas);
   scheduleDraw();
 

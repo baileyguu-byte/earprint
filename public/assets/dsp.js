@@ -8,7 +8,38 @@ export const BANDS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 export const BAND_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
 export const BAND_NAMES = ['deep sub-bass', 'sub-bass', 'bass', 'upper bass', 'low mids', 'mids', 'upper mids', 'presence', 'brilliance', 'air'];
 export const Q = 1.41;
-export const RANGE = 12;
+export const RANGE = 12;      // hard limit of the faders
+export const SOFT = 10;       // default limit; going past it needs a deliberate unlock
+export const GUIDE = 6;       // most good settings stay inside this
+
+/*
+ * A typical song, measured with analyse() below: 128 popular songs, 8 from each of 16 Deezer
+ * charts (all genres, pop, rap/hip hop, rock, dance, R&B, alternative, electro, country, latin,
+ * metal, jazz, soul & funk, reggae, folk, classical) in November 2026, 30-second previews.
+ * med is the median song, lo and hi the 25th and 75th percentiles, so half of all songs sit
+ * between lo and hi. Only these numbers are kept, never the audio.
+ *  - rel: energy per octave band relative to the 64 Hz–8 kHz average (same as analyse().rel)
+ *  - curve: the balance at 1/6-octave steps from 22.6 Hz (see balanceCurve)
+ */
+export const TYPICAL = {
+  songs: 128,
+  rel: {
+    med: [-2, 5.3, 4.3, 3.3, 2.4, 0.6, -2.1, -5.6, -7.9, -16.3],
+    lo: [-8.8, 3, 2.3, 1.8, 1.3, -0.7, -3.6, -7.5, -9.6, -19.5],
+    hi: [2.5, 7.5, 5.8, 5.2, 4.1, 2.4, -0.7, -3.7, -6.4, -14]
+  },
+  curve: {
+    f0: 32 / Math.SQRT2,
+    perOct: 6,
+    med: [-18.3, -15.7, -11.4, -7.6, -2.8, 2.5, 4.5, 5.5, 5.9, 6, 6, 4.6, 4.9, 4.6, 4.5, 4.1, 4, 3.3, 3.7, 2.7, 3.1, 2.9, 3.4, 3.1, 2.1, 2.1, 1.8, 2.2, 3.1, 2.5, 1.8, 1.1, 1.1, 0.3, -0.2, -0.3, -1, -1.1, -1.4, -2.3, -2.7, -3.5, -4.1, -4.4, -4.7, -5.3, -6.1, -6.9, -6.6, -6.4, -6.9, -7, -7.4, -8.1, -10.1, -12.3, -15.1, -25, -61.6, -61.3, -61.3],
+    lo: [-23.5, -21.7, -16.9, -13.3, -8.8, -5, -1.2, 1, 3.1, 3, 3.3, 2.5, 3, 2.3, 2, 2.1, 2.1, 1.3, 0.9, 0.4, 0.2, 0.4, 0.9, 0.6, -0.1, 0.2, -0.3, -0.5, 0.6, 0.4, -0.2, -1.2, -1.2, -2.1, -2.2, -3.2, -2.9, -3, -3.7, -3.9, -4.6, -5.5, -6.4, -6.5, -7, -7.8, -8.3, -8.4, -8.3, -8.9, -9.3, -9, -9.2, -9.9, -12.1, -15.5, -18.7, -31.9, -69.2, -69.1, -69.1],
+    hi: [-10.5, -7.1, -2.4, 0.8, 3.1, 6.1, 7.9, 9.1, 8.8, 8.3, 7.9, 7.4, 7.2, 7, 7.2, 5.9, 7.2, 5.7, 5.6, 6.1, 6.1, 5.7, 6.3, 5.6, 4.6, 4.6, 4.8, 5.4, 6, 4.4, 3.6, 3.9, 3.9, 2.7, 2.3, 2, 1.6, 1.2, 0.5, 0, 0.4, -0.7, -1.8, -1.5, -2.5, -3.2, -4.3, -4.7, -4.7, -4.9, -5.2, -5.5, -5.9, -6.7, -8, -9.8, -12.3, -20.3, -53.3, -53.4, -53.4]
+  }
+};
+/** Frequency of point k on the TYPICAL.curve grid. */
+export const typicalF = (k) => TYPICAL.curve.f0 * Math.pow(2, k / TYPICAL.curve.perOct);
+/** How a song's octave balance differs from the median song, band by band (dB). */
+export const vsTypical = (rel) => rel.map((v, i) => v - TYPICAL.rel.med[i]);
 
 export const PRESETS = {
   'Flat': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -122,4 +153,55 @@ export async function analyse(buffer) {
   });
   const ref = bandsDb.slice(1, 9).reduce((a, b) => a + b, 0) / 8;
   return { density, avgDb, rel: bandsDb.map((v) => v - ref) };
+}
+
+/**
+ * A song's balance for display: its average spectrum tilted by +3 dB per octave (so equal
+ * energy in every octave reads as a flat line) and shifted so the 45 Hz–11 kHz average sits
+ * at 0 dB. That puts the song, the typical song and the EQ curve on one dB scale.
+ * Returns the curve at CURVE_F and the offset, which also places the live spectrum.
+ */
+export const tiltDb = (f) => 10 * Math.log10(f / 1000);
+export function balanceCurve(avgDb) {
+  const raw = Array.from(avgDb, (v, i) => v + tiltDb(CURVE_F[i]));
+  // Light smoothing (about a fifth of an octave) so single notes don't read as features.
+  const W = [1, 2, 3, 2, 1], db = new Float32Array(N_CURVE);
+  let s = 0, c = 0;
+  for (let i = 0; i < N_CURVE; i++) {
+    let sum = 0, wsum = 0;
+    for (let k = -2; k <= 2; k++) {
+      const j = i + k;
+      if (j < 0 || j >= N_CURVE) continue;
+      sum += raw[j] * W[k + 2]; wsum += W[k + 2];
+    }
+    db[i] = sum / wsum;
+    if (CURVE_F[i] >= 45 && CURVE_F[i] <= 11314) { s += raw[i]; c++; }
+  }
+  const offset = c ? s / c : 0;
+  for (let i = 0; i < N_CURVE; i++) db[i] -= offset;
+  return { db, offset };
+}
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Auto fit. dev is how far each band sits from the typical song (vsTypical). sign -1 leans the
+ * sound towards the typical song ("even it out"), +1 exaggerates the difference ("bring out its
+ * character"). Differences under 1 dB are ignored, the 32 Hz and 16 kHz bands count half (they
+ * vary most and are where previews are least reliable) and every band stays within ±cap.
+ * Neighbouring bands overlap, so the gains are refined until the combined curve hits the
+ * targets at each band centre. Returns gains rounded to 0.5 dB.
+ */
+export function fitGains(dev, sign, strength, cap) {
+  const EDGE = [0.5, 1, 1, 1, 1, 1, 1, 1, 1, 0.5];
+  const target = dev.map((d, i) => {
+    const mag = Math.max(0, Math.abs(d) - 1) * Math.sign(d);
+    return clamp(sign * strength * mag * EDGE[i], -cap, cap);
+  });
+  let g = target.slice();
+  for (let it = 0; it < 14; it++) {
+    const r = responseDb(g, BANDS);
+    g = g.map((v, i) => clamp(v + 0.6 * (target[i] - r[i]), -cap, cap));
+  }
+  return g.map((v) => Math.round(v * 2) / 2 || 0);
 }

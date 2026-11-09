@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conditions and privacy · Earprint</title>
+<meta name="description" content="How Earprint uses Deezer previews, what it stores in your browser, and who made the parts it’s built from.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/earprint.css">
+<link rel="stylesheet" href="/assets/home.css">
+<style>
+  .doc { display: grid; gap: 0; padding-block: clamp(28px, 5vw, 56px) 24px; }
+  .doc .sec { padding-block: 32px; }
+  .doc .sec:first-of-type { border-top: 0; padding-top: 8px; }
+  .doc h1 { font: 600 clamp(28px, 4.6vw, 44px)/1.08 var(--body); letter-spacing: -.03em; margin: 0; max-width: 20ch; }
+  .doc .lead { margin: 0; color: var(--muted); font-size: 17px; max-width: 62ch; }
+  .doc ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 70ch; }
+  .dz-block { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .dz-block .dz-logo { height: 32px; }
+  .stored { display: grid; gap: 10px; justify-items: start; }
+  .stored p { margin: 0; }
+</style>
+</head>
+<body>
+<header class="site-head"><div class="wrap">
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="bar-a" x="2" y="10" width="3" height="11" rx="1.5"/><rect class="bar-a" x="7" y="5" width="3" height="16" rx="1.5"/><rect class="bar-n" x="12" y="9" width="3" height="12" rx="1.5"/><rect class="bar-b" x="17" y="3" width="3" height="18" rx="1.5"/></svg>EARPRINT</a>
+  <nav class="site-nav" aria-label="Main"><a href="/">How it works</a><a href="/lab/">EQ lab</a><a href="/about/" aria-current="page">About</a></nav>
+</div></header>
+
+<main class="wrap doc">
+  <section class="sec" aria-labelledby="aboutTitle">
+    <div class="sec-head">
+      <p class="label">About Earprint</p>
+      <h1 id="aboutTitle">Conditions, privacy and credits</h1>
+      <p class="lead">Earprint is a free, non-commercial prototype for finding EQ settings on the music you actually play. It has no accounts, no ads and no tracking.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="deezer" aria-labelledby="dzTitle">
+    <div class="sec-head">
+      <p class="label">Music from Deezer</p>
+      <h2 id="dzTitle">How song previews can be used</h2>
+    </div>
+    <div class="dz-block">
+      <a class="dz-credit" href="https://www.deezer.com" target="_blank" rel="noopener"><img class="dz-logo on-light" src="/assets/deezer/deezer-logo-black.png" width="714" height="200" alt="Deezer"><img class="dz-logo on-dark" src="/assets/deezer/deezer-logo-white.png" width="714" height="200" alt="Deezer"></a>
+      <p class="note-line">Song search, artist pages, charts and previews come from Deezer’s public API.</p>
+    </div>
+    <ul class="plain">
+      <li><b>Previews only.</b> Earprint plays the 30-second clips that Deezer offers to every visitor. For whole songs, open the song on Deezer.</li>
+      <li><b>For private, non-commercial listening.</b> Under Deezer’s conditions, listening through Earprint is limited to your own private use within your household.</li>
+      <li><b>No downloads.</b> Previews play inside the page and aren’t saved to your device, and Earprint doesn’t offer them as files.</li>
+      <li><b>Depends on your country.</b> Deezer decides which songs are available where. Songs it doesn’t offer in your country show as “Not available here”.</li>
+      <li><b>Independent.</b> Earprint is not affiliated with, sponsored by or endorsed by Deezer. Deezer and the Deezer logo are trademarks of Deezer.</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="privacy" aria-labelledby="privTitle">
+    <div class="sec-head">
+      <p class="label">Privacy</p>
+      <h2 id="privTitle">What Earprint keeps, and where</h2>
+    </div>
+    <ul class="plain">
+      <li><b>Nothing about you on a server.</b> Earprint has no accounts and no analytics, sets no cookies, and has no database.</li>
+      <li><b>Saved in your browser only:</b> your settings A and B, your picked artists, display choices such as the export format, and the measurements of your artists’ songs (ten numbers per song, never any audio). It’s stored with your browser’s local storage, so it stays on this device until you clear it.</li>
+      <li><b>Talking to Deezer.</b> When you search or play a preview, your browser contacts Deezer directly, so Deezer receives your request and IP address and its <a href="https://www.deezer.com/legal/personal-datas" target="_blank" rel="noopener">privacy policy</a> applies.</li>
+      <li><b>Your own audio files stay put.</b> Files you open or drop into the lab are decoded inside your browser. They’re never uploaded.</li>
+      <li><b>Hosting.</b> The site is served by Cloudflare, which handles basic connection details such as your IP address to deliver the pages. Fonts are served from this site too, not from a third party.</li>
+    </ul>
+    <div class="stored">
+      <p id="storedNote" class="note-line">Checking what’s saved in this browser…</p>
+      <button class="btn" type="button" id="clearData">Clear Earprint data from this browser</button>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="credTitle">
+    <div class="sec-head">
+      <p class="label">Credits</p>
+      <h2 id="credTitle">What Earprint is built from</h2>
+    </div>
+    <ul class="plain">
+      <li><b>Export formats.</b> Apple Music, Spotify, Equalizer APO and Wavelet are named only to show which apps the exports are made for. Their names belong to their owners, and Earprint isn’t connected to any of them.</li>
+      <li><b>The typical song.</b> Measured by Earprint from 128 previews across 16 Deezer charts in November 2026. Only the resulting numbers are kept.</li>
+      <li><b>EQ cheat sheet.</b> The instrument ranges follow common mixing practice. For more, read <a href="https://www.izotope.com/community/blog/eq-cheat-sheet" target="_blank" rel="noopener">iZotope’s EQ cheat sheet</a>.</li>
+      <li><b>Fonts.</b> Instrument Sans, JetBrains Mono and Michroma, all under the SIL Open Font License (<a href="/assets/fonts/LICENSE-instrument-sans.txt">Instrument Sans</a>, <a href="/assets/fonts/LICENSE-jetbrains-mono.txt">JetBrains Mono</a>, <a href="/assets/fonts/LICENSE-michroma.txt">Michroma</a>).</li>
+    </ul>
+  </section>
+
+  <section class="sec" aria-labelledby="safeTitle">
+    <div class="sec-head">
+      <p class="label">Hearing</p>
+      <h2 id="safeTitle">Keep the volume sensible</h2>
+      <p>Boosting with an EQ makes it easy to listen louder than you realise, and Earprint isn’t a hearing test. If you notice changes in your hearing, see an audiologist or your GP.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot"><div class="wrap">
+  <p class="foot-credit">Song previews and artist data from <a class="dz-credit" href="https://www.deezer.com" target="_blank" rel="noopener"><img class="dz-logo on-light" src="/assets/deezer/deezer-logo-black.png" width="714" height="200" alt="Deezer"><img class="dz-logo on-dark" src="/assets/deezer/deezer-logo-white.png" width="714" height="200" alt="Deezer"></a> Earprint is an independent prototype, not affiliated with Deezer.</p>
+  <p><a href="/">How it works</a> · <a href="/lab/">EQ lab</a></p>
+</div></footer>
+<script>
+(() => {
+  const note = document.getElementById('storedNote'), btn = document.getElementById('clearData');
+  const keys = () => { try { return Object.keys(localStorage).filter((k) => k.startsWith('earprint:')); } catch (e) { return null; } };
+  const show = () => {
+    const k = keys();
+    if (k === null) { note.textContent = 'This browser doesn’t allow local storage here, so Earprint can’t save anything.'; btn.hidden = true; return; }
+    note.textContent = k.length ? 'Earprint has ' + k.length + (k.length === 1 ? ' item' : ' items') + ' saved in this browser.' : 'Earprint has nothing saved in this browser.';
+    btn.disabled = !k.length;
+  };
+  btn.addEventListener('click', () => {
+    (keys() || []).forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+    show();
+    note.textContent = 'Cleared. ' + note.textContent;
+  });
+  show();
+})();
+</script>
+</body>
+</html>
