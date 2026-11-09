@@ -785,7 +785,7 @@ function renderFaders() {
     e.thumb.style.bottom = pos + '%';
     if (v >= 0) { e.fill.style.bottom = '50%'; e.fill.style.height = (pos - 50) + '%'; }
     else { e.fill.style.bottom = pos + '%'; e.fill.style.height = (50 - pos) + '%'; }
-    e.read.textContent = sgn(v);
+    e.read.textContent = sgn(v, Math.abs(v) >= 10 ? 0 : 1);
     e.fd.setAttribute('aria-valuemin', -state.limit);
     e.fd.setAttribute('aria-valuemax', state.limit);
     e.fd.setAttribute('aria-valuenow', v);
