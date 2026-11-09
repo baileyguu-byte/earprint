@@ -53,26 +53,121 @@ export const PRESETS = {
 export const N_CURVE = 256;
 export const CURVE_F = new Float32Array(N_CURVE).map((_, i) => 20 * Math.pow(1000, i / (N_CURVE - 1)));
 
+/*
+ * Band layouts: the equalisers people actually have. Picking one in the lab changes the faders
+ * and the filters you hear, so what you shape is what your device can do. Phone makers don't
+ * publish their filter shapes, so peaking bands use the usual one-octave-wide shape (wider where
+ * the bands are further apart). max is the device's own limit; step its default step size.
+ *  - b9: Samsung Galaxy (One UI) Custom equaliser: 63 Hz–16 kHz, whole dB from −10 to +10.
+ *  - b6: Spotify's equaliser: 60 Hz–15 kHz.
+ *  - b5: Android's built-in equaliser, which many music apps use: 60, 230, 910, 3600, 14000 Hz.
+ *  - b3: bass, mid and treble tone controls (cars, TVs, speakers). Frequencies vary by maker;
+ *    these are typical: shelves at 100 Hz and 10 kHz and a broad mid around 1 kHz.
+ */
+const pk = (f, q = Q) => ({ f, type: 'peaking', q });
+export const LAYOUTS = [
+  { id: 'b10', count: 10, title: '10 bands', devices: 'Apple Music on a Mac, Windows and most music players', max: 12, step: 0.5,
+    bands: BANDS.map((f) => pk(f)) },
+  { id: 'b9', count: 9, title: '9 bands', devices: 'Samsung Galaxy phones', max: 10, step: 1,
+    bands: [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].map((f) => pk(f)) },
+  { id: 'b6', count: 6, title: '6 bands', devices: 'Spotify', max: 12, step: 0.5,
+    bands: [60, 150, 400, 1000, 2400, 15000].map((f) => pk(f, 1)) },
+  { id: 'b5', count: 5, title: '5 bands', devices: 'Android’s built-in equaliser and apps that use it', max: 12, step: 1,
+    bands: [60, 230, 910, 3600, 14000].map((f) => pk(f, 0.96)) },
+  { id: 'b3', count: 3, title: '3 bands', devices: 'Bass, mid and treble: cars, TVs and speakers', max: 10, step: 1,
+    bands: [{ f: 100, type: 'lowshelf', label: 'Bass' }, { f: 1000, type: 'peaking', q: 0.7, label: 'Mid' }, { f: 10000, type: 'highshelf', label: 'Treble' }] }
+];
+export const L10 = LAYOUTS[0];
+export const layoutById = (id) => LAYOUTS.find((l) => l.id === id) || L10;
+/** Short fader label for a band: "Bass", "63", "2.4k". */
+export const bandLabel = (b) => b.label || (b.f >= 1000 ? (b.f / 1000) + 'k' : String(b.f));
+/** Spoken label: "Bass", "63 Hz", "2.4 kHz". */
+export const bandHz = (b) => b.label || (b.f >= 1000 ? (b.f / 1000) + ' kHz' : b.f + ' Hz');
+
 // Filter maths runs on its own offline context so the live audio graph is never disturbed.
 const calcCtx = new OAC(1, 128, 44100);
-const calcFilters = BANDS.map((f) => {
-  const b = calcCtx.createBiquadFilter();
-  b.type = 'peaking'; b.frequency.value = f; b.Q.value = Q;
-  return b;
-});
+const calcSets = {};
+function calcFilters(L) {
+  if (!calcSets[L.id]) {
+    calcSets[L.id] = L.bands.map((b) => {
+      const f = calcCtx.createBiquadFilter();
+      f.type = b.type; f.frequency.value = b.f;
+      if (b.type === 'peaking') f.Q.value = b.q;
+      return f;
+    });
+  }
+  return calcSets[L.id];
+}
 
-/** Combined EQ response in dB at the given frequencies. */
-export function responseDb(gains, freqs) {
+/** Combined EQ response in dB at the given frequencies, for a layout (10 bands by default). */
+export function responseDb(gains, freqs, L = L10) {
   const fq = freqs instanceof Float32Array ? freqs : Float32Array.from(freqs);
   const mag = new Float32Array(fq.length).fill(1);
   const m = new Float32Array(fq.length), ph = new Float32Array(fq.length);
-  calcFilters.forEach((b, i) => {
-    b.gain.value = gains[i];
+  calcFilters(L).forEach((b, i) => {
+    b.gain.value = gains[i] || 0;
     b.getFrequencyResponse(fq, m, ph);
     for (let k = 0; k < fq.length; k++) mag[k] *= m[k];
   });
   return Array.from(mag, (v) => 20 * Math.log10(Math.max(v, 1e-6)));
 }
+
+/* ---------- Fitting a layout to a target curve ----------
+   Used to move a setting between layouts, to export to devices with other bands, and for auto
+   fit. Weighted least squares on a 1/6-octave grid, refined a few times because neighbouring
+   bands overlap, then clamped and rounded to the step size. */
+export const FIT_F = Float32Array.from({ length: 57 }, (_, k) => 25 * Math.pow(2, k / 6));
+const FIT_W = Array.from(FIT_F, (f) => (f < 40 || f > 12500 ? 0.35 : 1));
+const basisCache = {};
+function basis(L) {
+  if (!basisCache[L.id]) {
+    basisCache[L.id] = L.bands.map((_, i) => responseDb(L.bands.map((__, j) => (j === i ? 6 : 0)), FIT_F, L).map((v) => v / 6));
+  }
+  return basisCache[L.id];
+}
+function solve(A, b) {
+  const n = b.length, M = A.map((row, i) => row.concat([b[i]]));
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    if (Math.abs(M[c][c]) < 1e-9) continue;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const k = M[r][c] / M[c][c];
+      for (let j = c; j <= n; j++) M[r][j] -= k * M[c][j];
+    }
+  }
+  return M.map((row, i) => (Math.abs(row[i]) < 1e-9 ? 0 : row[n] / row[i]));
+}
+/** Round to the step, symmetrically (−0.5 → −1 with whole-dB steps). */
+export const roundStep = (v, step) => (Math.sign(v) * Math.round(Math.abs(v) / step) * step) || 0;
+/** Gains for layout L whose curve best matches target (dB at FIT_F). */
+export function fitLayout(L, target, cap, step) {
+  const B = basis(L), n = B.length;
+  const clampAll = (g) => g.map((v) => Math.max(-cap, Math.min(cap, v)));
+  const lsq = (resid) => {
+    const A = B.map((bi) => B.map((bj) => bi.reduce((s, v, k) => s + FIT_W[k] * v * bj[k], 0)));
+    for (let i = 0; i < n; i++) A[i][i] += 0.02;
+    return solve(A, B.map((bi) => bi.reduce((s, v, k) => s + FIT_W[k] * v * resid[k], 0)));
+  };
+  let g = clampAll(lsq(Array.from(target)));
+  for (let it = 0; it < 4; it++) {
+    const r = responseDb(g, FIT_F, L);
+    const d = lsq(Array.from(target, (t, k) => t - r[k]));
+    g = clampAll(g.map((v, i) => v + d[i]));
+  }
+  return g.map((v) => roundStep(v, step));
+}
+/** Largest difference between two settings' curves from 40 Hz to 12 kHz, in dB. */
+export function curveGap(gA, LA, gB, LB) {
+  const a = responseDb(gA, FIT_F, LA), b = responseDb(gB, FIT_F, LB);
+  let m = 0;
+  for (let k = 0; k < FIT_F.length; k++) if (FIT_F[k] >= 40 && FIT_F[k] <= 12500) m = Math.max(m, Math.abs(a[k] - b[k]));
+  return m;
+}
+/** Move a setting from one layout to another (closest match). */
+export const convertGains = (g, from, to, step) => (from.id === to.id ? g.map((v) => roundStep(v, step)) : fitLayout(to, responseDb(g, FIT_F, from), to.max, step));
 
 /** Rough perceived-loudness weighting (high-pass near 38 Hz plus a +4 dB shelf above ~1.7 kHz). */
 export function kWeight(f) {
@@ -185,23 +280,40 @@ export function balanceCurve(avgDb) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /**
- * Auto fit. dev is how far each band sits from the typical song (vsTypical). sign -1 leans the
- * sound towards the typical song ("even it out"), +1 exaggerates the difference ("bring out its
- * character"). Differences under 1 dB are ignored, the 32 Hz and 16 kHz bands count half (they
- * vary most and are where previews are least reliable) and every band stays within ±cap.
- * Neighbouring bands overlap, so the gains are refined until the combined curve hits the
- * targets at each band centre. Returns gains rounded to 0.5 dB.
+ * Auto fit. dev is how far each octave band sits from the typical song (vsTypical). sign −1
+ * leans the sound towards the typical song ("even it out"), +1 exaggerates the difference
+ * ("bring out its character"), by the amount in FIT_AMOUNT. Differences under 0.5 dB are
+ * ignored, the 32 Hz and 16 kHz bands count half (they vary most between songs and previews are
+ * least reliable there) and the curve stays within ±cap. Medium evens out 80% of a difference,
+ * or doubles it; earlier versions did about half that, which was often too subtle to hear.
  */
-export function fitGains(dev, sign, strength, cap) {
+export const FIT_AMOUNT = { even: { gentle: 0.5, medium: 0.8, strong: 1 }, boost: { gentle: 0.6, medium: 1, strong: 1.6 } };
+export function fitTargets(dev, sign, amount, cap) {
   const EDGE = [0.5, 1, 1, 1, 1, 1, 1, 1, 1, 0.5];
-  const target = dev.map((d, i) => {
-    const mag = Math.max(0, Math.abs(d) - 1) * Math.sign(d);
-    return clamp(sign * strength * mag * EDGE[i], -cap, cap);
+  return dev.map((d, i) => {
+    const mag = Math.max(0, Math.abs(d) - 0.5) * Math.sign(d);
+    return clamp(sign * amount * mag * EDGE[i], -cap, cap);
   });
-  let g = target.slice();
-  for (let it = 0; it < 14; it++) {
-    const r = responseDb(g, BANDS);
-    g = g.map((v, i) => clamp(v + 0.6 * (target[i] - r[i]), -cap, cap));
-  }
-  return g.map((v) => Math.round(v * 2) / 2 || 0);
+}
+/** A curve on FIT_F through targets at the octave band centres (level beyond 32 Hz and 16 kHz). */
+export function octaveCurve(t) {
+  const lb = BANDS.map(Math.log2);
+  return Array.from(FIT_F, (f) => {
+    const x = Math.log2(f);
+    if (x <= lb[0]) return t[0];
+    if (x >= lb[9]) return t[9];
+    let i = 0;
+    while (x > lb[i + 1]) i++;
+    const fr = (x - lb[i]) / (lb[i + 1] - lb[i]);
+    return t[i] * (1 - fr) + t[i + 1] * fr;
+  });
+}
+export function fitGains(dev, sign, amount, cap, L = L10, step = 0.5) {
+  let g = fitLayout(L, octaveCurve(fitTargets(dev, sign, amount, cap)), cap, 0.01);
+  // Neighbouring bands add up, so keep the combined curve, not just each band, within ±cap.
+  const r = responseDb(g, FIT_F, L);
+  let peak = 0;
+  for (let k = 0; k < FIT_F.length; k++) if (FIT_F[k] >= 40 && FIT_F[k] <= 12500) peak = Math.max(peak, Math.abs(r[k]));
+  if (peak > cap) g = g.map((v) => v * cap / peak);
+  return g.map((v) => roundStep(v, step));
 }

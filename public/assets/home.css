@@ -159,3 +159,14 @@
   .fixtable td:nth-child(2) { display: inline; margin-right: 8px; }
   .fixtable td:nth-child(3) { display: inline; }
 }
+
+/* Band layouts chart: where each kind of equaliser puts its sliders */
+.laychart { --name: 230px; }
+.ir-name small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.lay-dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--panel); }
+.lay-shelf { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; }
+.lay-shelf.lo { background: linear-gradient(90deg, var(--ink), transparent); opacity: .55; }
+.lay-shelf.hi { background: linear-gradient(270deg, var(--ink), transparent); opacity: .55; }
+.lay-mid { position: absolute; top: 6px; bottom: 6px; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--ink), transparent); opacity: .35; }
+.lay-f { font: 400 12px var(--mono); color: var(--muted); }
+.laychart .ir-track { background-image: none; }

@@ -1,12 +1,13 @@
 // Earprint EQ lab.
 import * as dz from './deezer.js';
 import {
-  AC, BANDS, BAND_LABELS, BAND_NAMES, Q, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
-  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains
+  AC, BANDS, BAND_LABELS, BAND_NAMES, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
+  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F,
+  LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep
 } from './dsp.js';
 import { makeDemo } from './demo.js';
-import { FORMATS, buildExport } from './exports.js';
-import { BAND_INFO, FIXES } from './cheats.js';
+import { FORMATS, buildExport, formatForLayout } from './exports.js';
+import { BAND_INFO, TONE_INFO, FIXES, audibility } from './cheats.js';
 import { renderBalance, renderArtists, outside } from './charts.js';
 
 /* ---------- Helpers ---------- */
@@ -30,7 +31,10 @@ const fmtTime = (s, tenths = false) => {
 };
 const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
 const dbText = (v) => sgn(v, Number.isInteger(v) ? 0 : 1) + ' dB';
+// hz(i) names an analysis octave band (32 Hz … 16 kHz); bandHz() names a band of the current layout.
 const hz = (i) => (BAND_LABELS[i].includes('k') ? BAND_LABELS[i].replace('k', ' kHz') : BAND_LABELS[i] + ' Hz');
+/** The analysis octave band nearest to a frequency. */
+const nearestOctave = (f) => BANDS.reduce((best, b, i) => (Math.abs(Math.log2(f / b)) < Math.abs(Math.log2(f / BANDS[best])) ? i : best), 0);
 const PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
 const playable = (t) => !!(t && t.preview) && t.readable !== false;
 function img(src, cls) {
@@ -52,28 +56,45 @@ function flash(btn, text) {
 }
 /** "−3 dB at 64 Hz and +2 dB at 8 kHz" for the biggest changes in a list of gains. */
 function describeGains(g, max = 3) {
+  const L = state.layout;
   const parts = g.map((v, i) => [v, i]).filter(([v]) => v !== 0).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
   if (!parts.length) return '';
-  const shown = parts.slice(0, max).map(([v, i]) => dbText(v) + ' at ' + hz(i));
+  const shown = parts.slice(0, max).map(([v, i]) => dbText(v) + (L.bands[i].label ? ' on ' + L.bands[i].label.toLowerCase() : ' at ' + bandHz(L.bands[i])));
   const rest = parts.length - shown.length;
   if (rest > 0) return shown.join(', ') + ' and ' + rest + ' smaller ' + (rest === 1 ? 'change' : 'changes');
   return shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0];
 }
 
 /* ---------- State ---------- */
-const validGains = (g) => Array.isArray(g) && g.length === 10 && g.every((v) => typeof v === 'number' && isFinite(v) && Math.abs(v) <= RANGE);
-const saved = store.get('slots', null);
+const validGains = (g, n) => Array.isArray(g) && g.length === n && g.every((v) => typeof v === 'number' && isFinite(v) && Math.abs(v) <= RANGE);
+const layout0 = layoutById(store.get('layout', 'b10'));
+const fine0 = store.get('fine', {});
+const step0 = (typeof fine0[layout0.id] === 'boolean' ? fine0[layout0.id] : layout0.step === 0.5) ? 0.5 : 1;
+/** Saved settings A and B, converted if they were made with another band layout. */
+function loadSlots() {
+  const saved = store.get('slots', null);
+  const from = layoutById(saved && saved.layout ? saved.layout : 'b10');
+  const ok = saved && saved.A && saved.B && validGains(saved.A.gains, from.count) && validGains(saved.B.gains, from.count);
+  const src = ok ? saved : { A: { name: 'Flat', gains: PRESETS['Flat'] }, B: { name: 'Warm', gains: PRESETS['Warm'] } };
+  const L = ok ? from : L10;
+  const one = (s) => ({ name: String(s.name || 'Custom'), gains: convertGains(s.gains, L, layout0, step0) });
+  return { A: one(src.A), B: one(src.B) };
+}
+const oldStrength = store.get('fitStrength', 'medium');
 const state = {
-  slots: (saved && saved.A && saved.B && validGains(saved.A.gains) && validGains(saved.B.gains))
-    ? { A: { name: String(saved.A.name || 'Custom'), gains: saved.A.gains }, B: { name: String(saved.B.name || 'Custom'), gains: saved.B.gains } }
-    : { A: { name: 'Flat', gains: PRESETS['Flat'].slice() }, B: { name: 'Warm', gains: PRESETS['Warm'].slice() } },
+  layout: layout0,
+  step: step0,
+  fine: fine0,
+  slots: loadSlots(),
   active: 'A',
   match: store.get('match', true) !== false,
   limit: store.get('limit', SOFT) === RANGE ? RANGE : SOFT,
   layers: Object.assign({ spectrum: true, average: true, typical: true, curve: true }, store.get('layers', {})),
   picks: (store.get('artists', null) || store.get('five', []) || []).filter((a) => a && a.id && a.name).slice(0, 5),
-  fmt: store.get('fmt', 'apple'),
-  fitStrength: [0.35, 0.65, 1].includes(store.get('fitStrength', 0.65)) ? store.get('fitStrength', 0.65) : 0.65,
+  fmt: store.get('fmt', formatForLayout(layout0.id)),
+  fitStrength: { 0.35: 'gentle', 0.65: 'medium', 1: 'strong' }[oldStrength] || (['gentle', 'medium', 'strong'].includes(oldStrength) ? oldStrength : 'medium'),
+  prevLayout: null,
+  edited: false,
   undo: null,
   hot: -1,
   track: null,
@@ -96,9 +117,30 @@ if (!FORMATS.some((f) => f.id === state.fmt)) state.fmt = 'apple';
 state.picks.forEach((p) => { if (!(p.c >= 1 && p.c <= 5)) p.c = 0; });
 state.picks.forEach((p) => { if (!p.c) p.c = [1, 2, 3, 4, 5].find((c) => !state.picks.some((q) => q.c === c)); });
 const gainsOf = (s) => state.slots[s].gains;
+/** The most a band can move: the device's own limit, and Earprint's ±10 dB unless unlocked. */
+const limitNow = () => Math.min(state.layout.max, state.limit);
+const saveSlots = () => store.set('slots', { layout: state.layout.id, A: state.slots.A, B: state.slots.B });
 
 /* ---------- Audio graph ---------- */
-let ctx = null, voice = null, filters = [], comp = null, limiter = null, analyser = null, master = null, specBuf = null;
+let ctx = null, voice = null, eqIn = null, filters = [], comp = null, limiter = null, analyser = null, master = null, specBuf = null;
+
+/** (Re)build the EQ filters for the current band layout between eqIn and comp. */
+function buildChain() {
+  if (!ctx) return;
+  eqIn.disconnect();
+  filters.forEach((f) => { try { f.disconnect(); } catch (e) {} });
+  const g = gainsOf(state.active);
+  filters = state.layout.bands.map((b, i) => {
+    const f = ctx.createBiquadFilter();
+    f.type = b.type; f.frequency.value = b.f;
+    if (b.type === 'peaking') f.Q.value = b.q;
+    f.gain.value = g[i];
+    return f;
+  });
+  eqIn.connect(filters[0]);
+  for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
+  filters[filters.length - 1].connect(comp);
+}
 
 function ensureCtx() {
   if (ctx) {
@@ -106,13 +148,7 @@ function ensureCtx() {
     return ctx;
   }
   ctx = new AC();
-  const g = gainsOf(state.active);
-  filters = BANDS.map((f, i) => {
-    const b = ctx.createBiquadFilter();
-    b.type = 'peaking'; b.frequency.value = f; b.Q.value = Q; b.gain.value = g[i];
-    return b;
-  });
-  for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
+  eqIn = ctx.createGain();
   comp = ctx.createGain();
   comp.gain.value = compFor(state.active);
   limiter = ctx.createDynamicsCompressor();
@@ -121,7 +157,7 @@ function ensureCtx() {
   analyser.fftSize = 8192; analyser.smoothingTimeConstant = 0.78;
   master = ctx.createGain();
   master.gain.value = +$('vol').value;
-  filters[filters.length - 1].connect(comp);
+  buildChain();
   comp.connect(limiter); limiter.connect(analyser); analyser.connect(master); master.connect(ctx.destination);
   specBuf = new Float32Array(analyser.frequencyBinCount);
   return ctx;
@@ -146,9 +182,9 @@ function trackWeights() {
 }
 const curveCache = {};
 function curveOf(s) {
-  const key = gainsOf(s).join(',');
+  const key = state.layout.id + ':' + gainsOf(s).join(',');
   if (curveCache[s] && curveCache[s].key === key) return curveCache[s].db;
-  const db = responseDb(gainsOf(s), CURVE_F);
+  const db = responseDb(gainsOf(s), CURVE_F, state.layout);
   curveCache[s] = { key, db };
   return db;
 }
@@ -186,7 +222,7 @@ function startVoice(pos) {
   if (state.loop) { s.loopStart = state.loop.start; s.loopEnd = state.loop.end; }
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(1, t + 0.015);
-  s.connect(g); g.connect(filters[0]);
+  s.connect(g); g.connect(eqIn);
   s.start(t, pos);
   voice = { s, g };
   state.startOffset = pos;
@@ -687,23 +723,32 @@ function renderTime() {
   }
 }
 
-/* ---------- Gains, the ±10 dB soft limit, faders and dots ---------- */
+/* ---------- Gains, band layouts, the ±10 dB soft limit, faders ---------- */
+const presetCache = {};
+/** A preset (defined on 10 bands) as the closest match on the current layout. */
+function presetGains(n) {
+  const key = state.layout.id + ':' + state.step;
+  const c = presetCache[key] || (presetCache[key] = {});
+  return c[n] || (c[n] = convertGains(PRESETS[n], L10, state.layout, state.step));
+}
 function presetName(g) {
-  for (const [n, p] of Object.entries(PRESETS)) if (p.every((v, i) => v === g[i])) return n;
+  for (const n of Object.keys(PRESETS)) if (presetGains(n).every((v, i) => v === g[i])) return n;
   return 'Custom';
 }
+const softLimited = () => state.limit < RANGE && state.layout.max > SOFT;
 /** Set one band on the selected setting. Past the limit it stops there and explains why, once. */
 function setGain(i, v) {
-  const lim = state.limit;
+  const lim = limitNow();
   if (Math.abs(v) > lim) {
     v = Math.sign(v) * lim;
-    if (lim < RANGE) hitLimit();
+    if (softLimited()) hitLimit();
   }
-  v = Math.round(v * 2) / 2 || 0;
+  v = roundStep(v, state.step);
   const slot = state.slots[state.active];
   if (slot.gains[i] === v) return;
   slot.gains[i] = v;
   slot.name = presetName(slot.gains);
+  state.edited = true;
   afterSlotChange();
 }
 function hitLimit() {
@@ -716,27 +761,111 @@ function setLimit(l) {
   store.set('limit', l);
   $('allow12').checked = l === RANGE;
   $('limitNote').hidden = true;
-  renderFaders();
+  renderFaders(); renderFitAvailability();
 }
 function afterSlotChange() {
-  store.set('slots', state.slots);
+  saveSlots();
   applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); renderBandInfo(); scheduleDraw();
 }
 
-const faderEls = [];
+/* Band layouts and step size */
+const stepFor = (L) => ((typeof state.fine[L.id] === 'boolean' ? state.fine[L.id] : L.step === 0.5) ? 0.5 : 1);
+function setLayout(id) {
+  const to = layoutById(id), from = state.layout;
+  if (to.id === from.id) return;
+  const copy = (s) => ({ name: state.slots[s].name, gains: gainsOf(s).slice() });
+  const before = { A: copy('A'), B: copy('B') };
+  const step = stepFor(to);
+  // Going straight back restores the originals; otherwise A and B become their closest match.
+  const restore = state.prevLayout && state.prevLayout.id === to.id && !state.edited;
+  const converted = restore ? null : { A: convertGains(gainsOf('A'), from, to, step), B: convertGains(gainsOf('B'), from, to, step) };
+  state.layout = to;
+  state.step = step;
+  if (restore) state.slots = state.prevLayout.slots;
+  else {
+    ['A', 'B'].forEach((s) => {
+      const nm = state.slots[s].name, g = converted[s];
+      state.slots[s] = { name: nm in PRESETS ? presetName(g) : nm, gains: g };
+    });
+  }
+  state.prevLayout = { id: from.id, slots: before };
+  state.edited = false;
+  state.hot = -1;
+  state.undo = null;
+  $('undo').disabled = true;
+  $('undo').textContent = 'Undo';
+  store.set('layout', to.id);
+  state.fmt = formatForLayout(to.id);
+  store.set('fmt', state.fmt);
+  syncTabs();
+  buildChain(); buildFaders(); buildDots();
+  renderLayoutUi(); renderFitAvailability();
+  afterSlotChange();
+  $('layoutMsg').textContent = restore
+    ? 'Back to ' + to.title + ': settings A and B are as you left them.'
+    : 'Now ' + to.title + '. Settings A and B were converted to the closest ' + to.count + '-band versions of what you had' + (from.count > to.count ? ', so fine detail may be lost.' : '.') + ' Switch straight back to get the originals.';
+}
+function setFine(on) {
+  state.fine[state.layout.id] = on;
+  store.set('fine', state.fine);
+  const step = on ? 0.5 : 1;
+  if (step === state.step) return;
+  state.step = step;
+  let changed = false;
+  if (step === 1) {
+    ['A', 'B'].forEach((s) => {
+      const g = gainsOf(s).map((v) => roundStep(v, 1));
+      if (g.some((v, i) => v !== gainsOf(s)[i])) changed = true;
+      state.slots[s] = { name: state.slots[s].name, gains: g };
+    });
+  }
+  renderLayoutUi();
+  afterSlotChange();
+  $('layoutMsg').textContent = step === 1
+    ? 'Whole dB steps' + (changed ? ': settings A and B were rounded to whole numbers, as your device will need.' : '.')
+    : '0.5 dB steps.';
+}
+function renderLayoutUi() {
+  const L = state.layout;
+  $('layoutSel').value = L.id;
+  $('fineSteps').checked = state.step === 0.5;
+  $('layoutNote').textContent = LAYOUT_NOTES[L.id];
+  const can12 = L.max > SOFT;
+  $('allow12').disabled = !can12;
+  $('allow12Note').textContent = can12
+    ? 'Earprint stops at ±10 dB unless you turn this on. Most good settings stay within ±6 dB, marked on the faders.'
+    : 'The ' + L.title + ' layout stops at ±10 dB, like the devices that use it. Most good settings stay within ±6 dB, marked on the faders.';
+}
+const LAYOUT_NOTES = {
+  b10: 'Ten one-octave bands from 32 Hz to 16 kHz, the most detailed layout. Choose the layout of the equaliser you’ll actually use, so what you hear here is what you can set there.',
+  b9: 'Nine bands from 63 Hz to 16 kHz in whole-dB steps from −10 to +10, as in the Custom equaliser on Samsung Galaxy phones. Samsung keeps a separate setting for each output and locks 63 and 125 Hz on the phone’s own speaker, so connect your earbuds or headphones before you copy the values across.',
+  b6: 'Six bands from 60 Hz to 15 kHz, as in Spotify. With fewer bands, each one moves more of the sound.',
+  b5: 'Five wide bands at 60 Hz, 230 Hz, 910 Hz, 3.6 kHz and 14 kHz: the layout of Android’s built-in equaliser, which many music apps use. Check your app shows the same frequencies.',
+  b3: 'Bass, mid and treble, like most car stereos, TVs and speaker apps. Bass and treble lift or cut everything below about 100 Hz or above about 10 kHz; mid is a broad bump around 1 kHz. Makers use slightly different frequencies, so treat this as a close guide. Many cars count in steps rather than dB.'
+};
+
+let faderEls = [];
+/** Where a frequency sits across the scope, from 0 (left) to 1 (right of the plot). */
+const xFrac = (f) => Math.log2(f / F_LO) / OCTS;
+function infoFor(i) {
+  const L = state.layout;
+  return L.id === 'b3' ? TONE_INFO[i] : BAND_INFO[nearestOctave(L.bands[i].f)];
+}
 function buildFaders() {
-  const box = $('faders');
-  BANDS.forEach((f, i) => {
+  const box = $('faders'), L = state.layout;
+  box.textContent = '';
+  faderEls = [];
+  L.bands.forEach((b, i) => {
     const col = el('div', 'fcol');
     const read = el('output', 'fread');
     const fd = el('div', 'fader');
     fd.tabIndex = 0;
     fd.setAttribute('role', 'slider');
-    fd.setAttribute('aria-label', hz(i) + ', ' + BAND_INFO[i].name.toLowerCase());
+    fd.setAttribute('aria-label', b.label ? b.label : bandHz(b) + ', ' + infoFor(i).name.toLowerCase());
     fd.setAttribute('aria-describedby', 'bandInfo');
     fd.setAttribute('aria-orientation', 'vertical');
     fd.innerHTML = '<div class="ftrack"><div class="fguide" style="top:25%"></div><div class="fguide" style="top:75%"></div><div class="fzero"></div><div class="ffill"></div><div class="fthumb"></div></div>';
-    col.append(read, fd, el('div', 'flab', BAND_LABELS[i]));
+    col.append(read, fd, el('div', 'flab', bandLabel(b)));
     box.append(col);
     const track = fd.querySelector('.ftrack');
     const fromY = (y) => {
@@ -760,11 +889,11 @@ function buildFaders() {
     fd.addEventListener('dblclick', () => { if (!state.blind) setGain(i, 0); });
     fd.addEventListener('keydown', (e) => {
       if (state.blind) return;
-      const v = gainsOf(state.active)[i];
-      const map = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5, PageUp: 3, PageDown: -3 };
+      const v = gainsOf(state.active)[i], st = state.step;
+      const map = { ArrowUp: st, ArrowRight: st, ArrowDown: -st, ArrowLeft: -st, PageUp: 3, PageDown: -3 };
       if (e.key in map) { setGain(i, v + map[e.key]); e.preventDefault(); }
-      else if (e.key === 'Home') { setGain(i, state.limit); e.preventDefault(); }
-      else if (e.key === 'End') { setGain(i, -state.limit); e.preventDefault(); }
+      else if (e.key === 'Home') { setGain(i, limitNow()); e.preventDefault(); }
+      else if (e.key === 'End') { setGain(i, -limitNow()); e.preventDefault(); }
       else if (e.key === '0') { setGain(i, 0); e.preventDefault(); }
     });
     col.addEventListener('pointerenter', () => setHot(i));
@@ -773,23 +902,35 @@ function buildFaders() {
     fd.addEventListener('blur', () => setHot(-1));
     faderEls.push({ col, read, fd, fill: fd.querySelector('.ffill'), thumb: fd.querySelector('.fthumb') });
   });
+  placeFaders();
+  renderFaders();
+}
+/** Each fader sits directly under its band on the scope, as wide as the space allows. */
+function placeFaders() {
+  const xs = state.layout.bands.map((b) => xFrac(b.f));
+  let gap = 0.25;
+  for (let i = 1; i < xs.length; i++) gap = Math.min(gap, xs[i] - xs[i - 1]);
+  faderEls.forEach((e, i) => {
+    e.col.style.left = (xs[i] * 100).toFixed(2) + '%';
+    e.col.style.width = 'min(' + (gap * 100).toFixed(2) + '%, 96px)';
+  });
 }
 function renderFaders() {
-  const g = gainsOf(state.active);
+  const g = gainsOf(state.active), lim = limitNow();
   const box = $('faders');
   box.classList.toggle('slot-B', state.active === 'B');
-  box.classList.toggle('locked', state.limit < RANGE);
+  box.classList.toggle('locked', lim < RANGE);
   $('dots').classList.toggle('slot-B', state.active === 'B');
   faderEls.forEach((e, i) => {
     const v = g[i], pos = (v + RANGE) / (2 * RANGE) * 100;
     e.thumb.style.bottom = pos + '%';
     if (v >= 0) { e.fill.style.bottom = '50%'; e.fill.style.height = (pos - 50) + '%'; }
     else { e.fill.style.bottom = pos + '%'; e.fill.style.height = (50 - pos) + '%'; }
-    e.read.textContent = sgn(v, Math.abs(v) >= 10 ? 0 : 1);
-    e.fd.setAttribute('aria-valuemin', -state.limit);
-    e.fd.setAttribute('aria-valuemax', state.limit);
+    e.read.textContent = sgn(v, state.step >= 1 || Math.abs(v) >= 10 ? 0 : 1);
+    e.fd.setAttribute('aria-valuemin', -lim);
+    e.fd.setAttribute('aria-valuemax', lim);
     e.fd.setAttribute('aria-valuenow', v);
-    e.fd.setAttribute('aria-valuetext', sgn(v) + ' dB');
+    e.fd.setAttribute('aria-valuetext', sgn(v, state.step >= 1 ? 0 : 1) + ' dB');
   });
 }
 
@@ -802,16 +943,19 @@ function setHot(i) {
   scheduleDraw();
 }
 function renderBandInfo() {
-  const box = $('bandInfo'), i = state.hot;
+  const box = $('bandInfo'), i = state.hot, L = state.layout;
   box.textContent = '';
-  if (i < 0) {
+  if (i < 0 || i >= L.count) {
     box.textContent = state.blind ? 'Settings are hidden. Switch between 1 and 2 and listen.' : 'Point at a band, or drag its dot, to see what lives there.';
     return;
   }
-  const info = BAND_INFO[i];
-  box.append(el('b', null, hz(i) + ' · ' + info.name + '. '), info.what + ' Too much sounds ' + info.more + '; too little, ' + info.less + '.');
+  const b = L.bands[i], info = infoFor(i);
+  box.append(el('b', null, (b.label || bandHz(b) + ' · ' + info.name) + '. '), info.what + ' Too much sounds ' + info.more + '; too little, ' + info.less + '.');
   const fp = state.track && state.track.fp;
-  if (fp) box.append(' This song: ' + dbText(Math.round(vsTypical(fp.rel)[i] * 2) / 2) + ' against the typical song.');
+  if (fp) {
+    const k = nearestOctave(b.f);
+    box.append(' This song: ' + dbText(roundStep(vsTypical(fp.rel)[k], 0.5)) + ' against the typical song' + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
+  }
   if (!state.blind) box.append(' Setting ' + state.active + ': ' + dbText(gainsOf(state.active)[i]) + '.');
 }
 
@@ -865,7 +1009,16 @@ function undo() {
 function loadGains(name, gains, label) {
   remember(label);
   state.slots[state.active] = { name, gains: gains.slice() };
+  state.edited = true;
   afterSlotChange();
+}
+const fmtF = (f) => (f >= 1000 ? (Math.round(f / 100) / 10) + ' kHz' : Math.round(f) + ' Hz');
+/** The biggest change a setting makes anywhere from 40 Hz to 12.5 kHz, and where. */
+function peakChange(g) {
+  const r = responseDb(g, FIT_F, state.layout);
+  let peak = 0, at = 1000;
+  FIT_F.forEach((f, k) => { if (f >= 40 && f <= 12500 && Math.abs(r[k]) > Math.abs(peak)) { peak = r[k]; at = f; } });
+  return { peak, at };
 }
 
 function renderFitAvailability() {
@@ -873,19 +1026,26 @@ function renderFitAvailability() {
   $('fitEven').disabled = !fp;
   $('fitBoost').disabled = !fp;
   $('fitIntro').textContent = fp
-    ? 'Builds a starting point from how “' + state.track.title + '” compares with a typical song. Every band stays within ±' + Math.min(GUIDE, state.limit) + ' dB.'
+    ? 'Builds a starting point from how “' + state.track.title + '” compares with a typical song, on your ' + state.layout.count + ' bands. Every band stays within ±' + Math.min(GUIDE, limitNow()) + ' dB.'
     : 'Builds a starting point from how the song compares with a typical song. Load a song to use it.';
 }
 function applyFit(dev, sign, opts) {
-  const cap = Math.min(GUIDE, state.limit);
-  const g = fitGains(dev, sign, state.fitStrength, cap);
-  const strength = { 0.35: 'gentle', 0.65: 'medium', 1: 'strong' }[state.fitStrength];
-  if (g.every((v) => v === 0)) {
-    setToolMsg(opts.subject + ' already sits close to a typical song, so a ' + strength + ' fit changes nothing. Try Strong, or shape it by ear.');
+  const cap = Math.min(GUIDE, limitNow());
+  const dir = sign < 0 ? 'even' : 'boost';
+  const g = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, state.layout, state.step);
+  const { peak, at } = peakChange(g);
+  if (Math.abs(peak) < 0.5) {
+    setToolMsg(opts.subject + ' already sits close to a typical song, so ' + (sign < 0 ? 'evening it out' : 'bringing out its character') + ' at ' + state.fitStrength + ' strength changes almost nothing. Try Strong, a quick fix, or shape it by ear.');
     return;
   }
   loadGains(opts.name, g, 'auto fit');
-  setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
+  let tail = '';
+  if (Math.abs(peak) < 2) {
+    tail = sign < 0
+      ? ' That’s because ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' is already close to a typical song. For a bigger difference, try Strong or “Bring out its character”.'
+      : ' For a bigger difference, try Strong.';
+  }
+  setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. The biggest change is ' + dbText(roundStep(peak, 0.5)) + ' around ' + fmtF(at) + ', which is ' + audibility(peak) + '.' + tail + ' Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
 }
 function fitSong(sign) {
   const t = state.track;
@@ -897,17 +1057,27 @@ function fitSong(sign) {
   });
 }
 function applyFix(fx) {
-  const s = state.slots[state.active];
+  const L = state.layout, s = state.slots[state.active], lim = limitNow();
+  // On 10 bands the fix adds directly; other layouts get the closest match to the same change.
+  const raw = L.id === 'b10'
+    ? s.gains.map((v, i) => v + fx.delta[i])
+    : (() => {
+      const cur = responseDb(s.gains, FIT_F, L), d = responseDb(fx.delta, FIT_F, L10);
+      return fitLayout(L, cur.map((v, k) => v + d[k]), RANGE, 0.01);
+    })();
   let hit = false;
-  const g = s.gains.map((v, i) => {
-    let n = v + fx.delta[i];
-    if (Math.abs(n) > state.limit) { n = Math.sign(n) * state.limit; hit = true; }
-    return Math.round(n * 2) / 2 || 0;
+  const g = raw.map((v) => {
+    if (Math.abs(v) > lim) { v = Math.sign(v) * lim; hit = true; }
+    return roundStep(v, state.step);
   });
-  if (g.every((v, i) => v === s.gains[i])) { setToolMsg(fx.label + ': setting ' + state.active + ' is already at the limit there.'); if (hit) hitLimit(); return; }
-  const change = g.map((v, i) => Math.round((v - s.gains[i]) * 2) / 2 || 0);
+  if (g.every((v, i) => v === s.gains[i])) {
+    setToolMsg(fx.label + ': setting ' + state.active + (hit ? ' is already at the limit there.' : ' can’t change enough on ' + L.count + ' bands to make a difference.'));
+    if (hit && softLimited()) hitLimit();
+    return;
+  }
+  const change = g.map((v, i) => roundStep(v - s.gains[i], 0.5));
   loadGains(presetName(g), g, fx.label.toLowerCase() + ' fix');
-  if (hit && state.limit < RANGE) hitLimit();
+  if (hit && softLimited()) hitLimit();
   setToolMsg(fx.label + ' (' + fx.hint.toLowerCase() + '): ' + describeGains(change) + ' on setting ' + state.active + '. Click again for more.');
 }
 function buildFixes() {
@@ -1140,22 +1310,28 @@ function buildTabs() {
     const b = el('button', 'tab', f.label);
     b.type = 'button';
     b.setAttribute('aria-pressed', String(f.id === state.fmt));
+    b.dataset.fmt = f.id;
     b.addEventListener('click', () => {
       state.fmt = f.id;
       store.set('fmt', f.id);
-      box.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      syncTabs();
       renderExport();
     });
     box.append(b);
   });
+}
+function syncTabs() {
+  $('exTabs').querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.fmt === state.fmt)));
 }
 function renderExport() {
   const blind = !!state.blind;
   $('exHidden').hidden = !blind;
   $('exSlot').textContent = blind ? '' : state.active;
   if (blind) return;
-  const ex = buildExport(state.fmt, gainsOf(state.active), state.slots[state.active].name);
+  const ex = buildExport(state.fmt, gainsOf(state.active), state.slots[state.active].name, state.layout, state.step);
   currentExport = ex;
+  $('outMatch').textContent = ex.match || '';
+  $('outMatch').hidden = !ex.match;
   const vis = $('exVisual');
   vis.innerHTML = ex.visual || '';
   vis.hidden = !ex.visual;
@@ -1241,13 +1417,14 @@ function drawScope(live) {
   const blind = !!state.blind;
 
   // Band columns: the one you point at is lightly shaded; a hairline marks each band centre.
-  if (state.hot >= 0) {
-    const f = BANDS[state.hot];
+  const LB = state.layout.bands;
+  if (state.hot >= 0 && state.hot < LB.length) {
+    const [lo, hi] = bandSpan(state.hot);
     g2.fillStyle = rgba(colors['--ink'], 0.05);
-    g2.fillRect(G.X(f / Math.SQRT2), 0, G.X(f * Math.SQRT2) - G.X(f / Math.SQRT2), H);
+    g2.fillRect(G.X(lo), 0, G.X(hi) - G.X(lo), H);
   }
   g2.lineWidth = 1;
-  BANDS.forEach((f) => {
+  LB.forEach(({ f }) => {
     const x = Math.round(G.X(f)) + 0.5;
     g2.strokeStyle = rgba(colors['--muted'], 0.13);
     g2.beginPath(); g2.moveTo(x, G.padT); g2.lineTo(x, G.padT + G.plotH); g2.stroke();
@@ -1350,10 +1527,19 @@ function drawScope(live) {
 }
 
 /* Draggable dots on the selected setting's curve */
-const dotEls = [];
+let dotEls = [];
+/** The part of the scope a band owns: halfway (in octaves) to its neighbours. */
+function bandSpan(i) {
+  const B = state.layout.bands, f = B[i].f;
+  const lo = i > 0 ? Math.sqrt(B[i - 1].f * f) : Math.max(F_LO, f / Math.SQRT2);
+  const hi = i < B.length - 1 ? Math.sqrt(f * B[i + 1].f) : Math.min(F_HI, f * Math.SQRT2);
+  return [lo, hi];
+}
 function buildDots() {
   const box = $('dots');
-  BANDS.forEach((f, i) => {
+  box.textContent = '';
+  dotEls = [];
+  state.layout.bands.forEach((b, i) => {
     const d = el('div', 'dot');
     const v = el('span', 'dv');
     d.append(v);
@@ -1389,17 +1575,18 @@ function placeDots() {
   dotEls.forEach((o, i) => {
     o.d.hidden = false;
     o.d.style.transform = '';
-    o.d.style.left = G.X(BANDS[i]).toFixed(1) + 'px';
+    o.d.style.left = G.X(state.layout.bands[i].f).toFixed(1) + 'px';
     o.d.style.top = G.Y(g[i]).toFixed(1) + 'px';
     o.v.textContent = sgn(g[i]) + ' dB';
   });
 }
 function bindScopeHover() {
-  // Each band owns one octave of the scope, from its centre ÷ √2 to its centre × √2.
+  // The band under the pointer is the nearest band centre, measured in octaves.
   const band = (clientX) => {
     const G = geom(), r = canvas.getBoundingClientRect(), x = clientX - r.left;
     if (x < 0 || x > G.plotW) return -1;
-    return Math.max(0, Math.min(9, Math.floor(x / G.plotW * OCTS)));
+    const f = F_LO * Math.pow(2, x / G.plotW * OCTS);
+    return state.layout.bands.reduce((best, b, i, B) => (Math.abs(Math.log2(f / b.f)) < Math.abs(Math.log2(f / B[best].f)) ? i : best), 0);
   };
   scopeWrap.addEventListener('pointermove', (e) => { if (e.target === canvas) setHot(band(e.clientX)); });
   scopeWrap.addEventListener('pointerdown', (e) => { if (e.target === canvas) setHot(band(e.clientX)); });
@@ -1622,7 +1809,7 @@ function init() {
     const n = sel.value;
     if (!n) return;
     sel.value = '';
-    loadGains(n, PRESETS[n], 'preset');
+    loadGains(n, presetGains(n), 'preset');
     setToolMsg('Loaded “' + n + '” into setting ' + state.active + '.');
   });
   $('match').checked = state.match;
@@ -1640,20 +1827,26 @@ function init() {
     const from = state.active, to = from === 'A' ? 'B' : 'A';
     remember('copy', to);
     state.slots[to] = { name: state.slots[from].name, gains: gainsOf(from).slice() };
+    state.edited = true;
     afterSlotChange();
     setToolMsg('Copied ' + from + ' to ' + to + '. Change one of them, then switch between them to compare.');
   });
   $('resetSlot').addEventListener('click', () => {
-    loadGains('Flat', PRESETS['Flat'], 'reset');
+    loadGains('Flat', new Array(state.layout.count).fill(0), 'reset');
     setToolMsg('Setting ' + state.active + ' is flat again.');
   });
   $('undo').addEventListener('click', undo);
   $('fitEven').addEventListener('click', () => { ensureCtx(); fitSong(-1); });
   $('fitBoost').addEventListener('click', () => { ensureCtx(); fitSong(1); });
   document.querySelectorAll('input[name="fitStrength"]').forEach((r) => {
-    r.checked = +r.value === state.fitStrength;
-    r.addEventListener('change', () => { if (r.checked) { state.fitStrength = +r.value; store.set('fitStrength', state.fitStrength); } });
+    r.checked = r.value === state.fitStrength;
+    r.addEventListener('change', () => { if (r.checked) { state.fitStrength = r.value; store.set('fitStrength', state.fitStrength); } });
   });
+  const lsel = $('layoutSel');
+  lsel.innerHTML = LAYOUTS.map((L) => '<option value="' + L.id + '">' + L.title + ' · ' + L.devices + '</option>').join('');
+  lsel.addEventListener('change', () => { ensureCtx(); setLayout(lsel.value); });
+  $('fineSteps').addEventListener('change', (e) => setFine(e.target.checked));
+  renderLayoutUi();
   $('allow12').checked = state.limit === RANGE;
   $('allow12').addEventListener('change', (e) => setLimit(e.target.checked ? RANGE : SOFT));
   $('limitAllow').addEventListener('click', () => setLimit(RANGE));
