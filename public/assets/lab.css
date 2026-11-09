@@ -5,7 +5,7 @@
 .lab-intro h1 { font: 600 clamp(22px, 3vw, 28px)/1.2 var(--body); letter-spacing: -.01em; margin: 0; }
 .lab-intro p { margin: 0; flex-basis: 100%; color: var(--muted); max-width: 76ch; }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; min-width: 0; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
 .top { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .tools { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -148,13 +148,14 @@ select.btn { appearance: auto; }
 .bandinfo { margin: 2px var(--gutter) 0 0; font-size: 13px; color: var(--muted); min-height: 2.9em; }
 .bandinfo b { color: var(--ink); font-weight: 600; }
 
-.bank { position: relative; margin-right: var(--gutter); }
-.faders { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 0; --slot: var(--a); }
+/* Faders sit under their band on the scope, so they're placed by frequency, not in a grid */
+.bank { position: relative; margin-right: var(--gutter); --fh: 150px; }
+.faders { position: relative; height: calc(var(--fh) + 50px); --slot: var(--a); }
 .faders.slot-B { --slot: var(--b); }
-.fcol { display: grid; justify-items: center; gap: 5px; min-width: 0; }
+.fcol { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 5px; min-width: 0; }
 .fcol.hot .flab { color: var(--ink); font-weight: 500; }
 .fread { font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fader { position: relative; height: 150px; padding-block: 9px; width: 100%; display: flex; justify-content: center; cursor: ns-resize; touch-action: none; border-radius: 6px; }
+.fader { position: relative; height: var(--fh); padding-block: 9px; width: 100%; display: flex; justify-content: center; cursor: ns-resize; touch-action: none; border-radius: 6px; }
 .ftrack { position: relative; width: 6px; height: 100%; background: var(--well); border-radius: 3px; }
 .ftrack::before, .ftrack::after { content: ""; position: absolute; left: -4px; right: -4px; height: 8.333%; border-radius: 3px; background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 5px); opacity: 0; }
 .ftrack::before { top: 0; }
@@ -173,7 +174,7 @@ select.btn { appearance: auto; }
 .mask b { color: var(--ink); font-weight: 600; }
 @media (max-width: 600px) {
   .eqarea { --gutter: 34px; }
-  .fader { height: 132px; }
+  .bank { --fh: 132px; }
   .fthumb { width: 22px; }
   .fread, .flab { font-size: 10px; }
 }
@@ -293,9 +294,21 @@ pre.out { margin: 0; font: 400 12.5px/1.6 var(--mono); background: var(--well); 
 .dropzone span { color: var(--muted); font-size: 13.5px; }
 
 /* Wide screens: export output beside its instructions */
+.ex-main, .ex-side { display: grid; gap: 10px; align-content: start; min-width: 0; }
 @media (min-width: 961px) {
   .export #exBody { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; column-gap: 20px; }
-  .export #exVisual, .export #out { grid-column: 1; }
-  .export #outNote { grid-column: 2; grid-row: 1 / span 2; }
 }
 .src-head .dz-logo { height: 22px; }
+
+/* Band layout picker */
+.layoutbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.lay-pick { display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0; font-size: 13.5px; font-weight: 600; }
+.lay-pick span { white-space: nowrap; }
+.lay-pick select { flex: 1; min-width: 0; width: 100%; font-weight: 400; text-overflow: ellipsis; }
+.fine { flex: 0 0 auto; }
+.laynotes { display: grid; gap: 6px; margin-top: -6px; }
+.laynotes .note { max-width: 86ch; }
+.laymsg:empty { display: none; }
+.laymsg { color: var(--ink); }
+.match { color: var(--ink); padding: 8px 10px; border-radius: 8px; background: var(--well); }
+.spot { max-width: 620px; }

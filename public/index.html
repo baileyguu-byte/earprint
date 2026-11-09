@@ -73,6 +73,7 @@
         <p>Cutting is often cleaner than boosting. If vocals sound buried, try lowering the bass a little before you raise the mids.</p>
       </div>
       <dl class="facts">
+        <div><dt>±1 dB</dt><dd>Hard to hear in music, even side by side.</dd></div>
         <div><dt>+3 dB</dt><dd>A small but clear lift.</dd></div>
         <div><dt>+6 dB</dt><dd>A big change. Most good settings stay within this.</dd></div>
         <div><dt>±10 dB</dt><dd>Where Earprint stops unless you unlock ±12 dB. Changes this large usually cause more problems than they fix.</dd></div>
@@ -232,6 +233,52 @@
       </article>
     </div>
     <p class="note-line">Planned for a later version: starting from a correction for your exact headphone model, using published measurements.</p>
+  </section>
+
+  <section class="sec" id="bands" aria-labelledby="bandsTitle">
+    <div class="sec-head">
+      <p class="label">Count your bands</p>
+      <h2 id="bandsTitle">Match the lab to the equaliser you have</h2>
+      <p>Equalisers differ in how many sliders they have and where they sit. In the lab, pick the same layout as the device you’ll copy the setting into, so what you hear there is what you can set. Fewer bands means broader strokes: a car’s treble control can’t tame a harsh 4 kHz without also dulling the cymbals.</p>
+    </div>
+    <figure class="irchart laychart" aria-labelledby="layCap">
+      <div class="ir-axis" aria-hidden="true"><div>
+        <span class="first" style="left:0">20 Hz</span><span class="minor" style="left:13.3%">50</span><span style="left:23.3%">100</span><span class="minor" style="left:33.3%">200</span><span style="left:46.6%">500</span><span class="minor" style="left:56.6%">1k</span><span style="left:66.6%">2k</span><span style="left:79.9%">5k</span><span class="minor" style="left:89.9%">10k</span><span class="last" style="left:100%">20 kHz</span>
+      </div></div>
+      <ul class="ir-list">
+        <li class="ir lay">
+          <span class="ir-name">10 bands<small>Apple Music on a Mac, Windows and most music players</small></span>
+          <div class="ir-track" aria-hidden="true"><span class="lay-dot" style="left:6.8%"></span><span class="lay-dot" style="left:16.8%"></span><span class="lay-dot" style="left:26.5%"></span><span class="lay-dot" style="left:36.6%"></span><span class="lay-dot" style="left:46.6%"></span><span class="lay-dot" style="left:56.6%"></span><span class="lay-dot" style="left:66.7%"></span><span class="lay-dot" style="left:76.7%"></span><span class="lay-dot" style="left:86.7%"></span><span class="lay-dot" style="left:96.8%"></span></div>
+          <p class="ir-notes lay-f">32 · 64 · 125 · 250 · 500 · 1k · 2k · 4k · 8k · 16k</p>
+        </li>
+        <li class="ir lay">
+          <span class="ir-name">9 bands<small>Samsung Galaxy phones</small></span>
+          <div class="ir-track" aria-hidden="true"><span class="lay-dot" style="left:16.6%"></span><span class="lay-dot" style="left:26.5%"></span><span class="lay-dot" style="left:36.6%"></span><span class="lay-dot" style="left:46.6%"></span><span class="lay-dot" style="left:56.6%"></span><span class="lay-dot" style="left:66.7%"></span><span class="lay-dot" style="left:76.7%"></span><span class="lay-dot" style="left:86.7%"></span><span class="lay-dot" style="left:96.8%"></span></div>
+          <p class="ir-notes lay-f">63 · 125 · 250 · 500 · 1k · 2k · 4k · 8k · 16k</p>
+        </li>
+        <li class="ir lay">
+          <span class="ir-name">6 bands<small>Spotify</small></span>
+          <div class="ir-track" aria-hidden="true"><span class="lay-dot" style="left:15.9%"></span><span class="lay-dot" style="left:29.2%"></span><span class="lay-dot" style="left:43.4%"></span><span class="lay-dot" style="left:56.6%"></span><span class="lay-dot" style="left:69.3%"></span><span class="lay-dot" style="left:95.8%"></span></div>
+          <p class="ir-notes lay-f">60 · 150 · 400 · 1k · 2.4k · 15k</p>
+        </li>
+        <li class="ir lay">
+          <span class="ir-name">5 bands<small>Android’s built-in equaliser</small></span>
+          <div class="ir-track" aria-hidden="true"><span class="lay-dot" style="left:15.9%"></span><span class="lay-dot" style="left:35.4%"></span><span class="lay-dot" style="left:55.3%"></span><span class="lay-dot" style="left:75.2%"></span><span class="lay-dot" style="left:94.8%"></span></div>
+          <p class="ir-notes lay-f">60 · 230 · 910 · 3.6k · 14k</p>
+        </li>
+        <li class="ir lay">
+          <span class="ir-name">3 bands<small>Bass, mid and treble: cars, TVs and speakers</small></span>
+          <div class="ir-track" aria-hidden="true"><span class="lay-shelf lo" style="left:0;width:23.3%"></span><span class="lay-mid" style="left:41.4%;width:30.6%"></span><span class="lay-dot" style="left:56.6%"></span><span class="lay-shelf hi" style="left:90.0%;width:10.0%"></span></div>
+          <p class="ir-notes lay-f">Bass below about 100 Hz · Mid around 1k · Treble above about 10k</p>
+        </li>
+      </ul>
+      <figcaption id="layCap">Dots mark each slider’s centre. Bass and treble controls are shelves: they lift or cut everything beyond their frequency, shown as a fade. Exact frequencies vary by maker.</figcaption>
+    </figure>
+    <ul class="points">
+      <li><b>Steps</b><span>The Music app on a Mac and Equalizer APO take fine values. Most phones only take whole dB, so turn off 0.5 dB steps in the lab. Car stereos often count steps rather than dB, and a step is usually 1 to 2 dB.</span></li>
+      <li><b>Samsung phones</b><span>They keep a separate equaliser for each output and lock 63 and 125 Hz on the phone’s own speaker. Connect your earbuds or headphones before you set it.</span></li>
+      <li><b>Extra processing</b><span>Dolby Atmos, Adapt Sound, bass boost and sound modes change the sound on top of any EQ. Turn them off while you compare, or your phone won’t sound like the lab.</span></li>
+    </ul>
   </section>
 
   <section class="sec" aria-labelledby="eraTitle">

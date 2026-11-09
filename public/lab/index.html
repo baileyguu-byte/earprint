@@ -107,6 +107,24 @@
           </ul>
         </details>
       </div>
+      <div class="layoutbar">
+        <label class="lay-pick" for="layoutSel"><span>Your equaliser</span><select class="btn" id="layoutSel"></select></label>
+        <label class="switch fine" for="fineSteps">0.5 dB steps <input type="checkbox" id="fineSteps" role="switch"></label>
+      </div>
+      <div class="laynotes">
+        <p class="note" id="layoutNote"></p>
+        <p class="note laymsg" id="layoutMsg" role="status" aria-live="polite"></p>
+        <details class="howto">
+          <summary>About band layouts and steps</summary>
+          <ul>
+            <li><b>A band is one slider.</b> It turns up or down the part of the sound around its frequency. Pick the layout of the equaliser you’ll copy the setting into, so what you hear here is what you can set there.</li>
+            <li><b>Fewer bands, broader strokes.</b> A car’s treble control can’t tame a harsh 4 kHz without also dulling the cymbals; ten bands can. Auto fit and quick fixes always work with the bands you have.</li>
+            <li><b>Switching layouts converts A and B</b> to the closest match the new layout can make, and the scope shows the result. Switch straight back to get the originals.</li>
+            <li><b>Steps.</b> Some equalisers move in 0.5 dB steps, many phones only in whole dB, and car stereos often count steps rather than dB. Turn off 0.5 dB steps to match a phone.</li>
+            <li><b>Why your device can still sound a little different:</b> phone makers don’t publish their filter shapes; extras such as Dolby Atmos, Adapt Sound, bass boost or sound modes change the sound on top; some phones keep a separate equaliser for each output; and the lab matches loudness while your phone doesn’t, so boosts sound louder there.</li>
+          </ul>
+        </details>
+      </div>
       <div class="eqarea" id="eqArea">
         <div class="well scope-wrap" id="scopeWrap">
           <canvas id="scope" role="img" aria-label="Frequency scope with the live sound, the song’s average, the typical song and the EQ curves for settings A and B"></canvas>
@@ -159,20 +177,20 @@
           </div>
           <div class="seg" role="radiogroup" aria-label="Auto fit strength" id="fitStrength">
             <span class="seg-label">Strength</span>
-            <label><input type="radio" name="fitStrength" value="0.35">Gentle</label>
-            <label><input type="radio" name="fitStrength" value="0.65">Medium</label>
-            <label><input type="radio" name="fitStrength" value="1">Strong</label>
+            <label><input type="radio" name="fitStrength" value="gentle">Gentle</label>
+            <label><input type="radio" name="fitStrength" value="medium">Medium</label>
+            <label><input type="radio" name="fitStrength" value="strong">Strong</label>
           </div>
         </div>
         <div class="tool">
           <h3>Quick fixes</h3>
-          <p class="note">What bothers you? Each click nudges setting <span class="slotName">A</span> a little. Click again for more.</p>
+          <p class="note">What bothers you? Each click moves setting <span class="slotName">A</span> about 3 dB where it matters, enough to hear in a quick A/B. Click again for more.</p>
           <div class="chips fixes" id="fixes"></div>
         </div>
         <p class="toolmsg" id="toolMsg" role="status" aria-live="polite"></p>
         <div class="tool range">
           <label class="switch" for="allow12">Allow boosts and cuts up to ±12 dB <input type="checkbox" id="allow12" role="switch"></label>
-          <p class="note">Earprint stops at ±10 dB unless you turn this on. Most good settings stay within ±6 dB, marked on the faders.</p>
+          <p class="note" id="allow12Note">Earprint stops at ±10 dB unless you turn this on. Most good settings stay within ±6 dB, marked on the faders.</p>
         </div>
       </div>
     </section>
@@ -233,9 +251,14 @@
     </div>
     <div class="tabs edit-only" role="group" aria-label="Export format" id="exTabs"></div>
     <div id="exBody" class="edit-only">
-      <div id="exVisual" hidden></div>
-      <pre class="out" id="out"></pre>
-      <p class="note" id="outNote"></p>
+      <div class="ex-main">
+        <div id="exVisual" hidden></div>
+        <pre class="out" id="out"></pre>
+      </div>
+      <div class="ex-side">
+        <p class="note match" id="outMatch" hidden></p>
+        <p class="note" id="outNote"></p>
+      </div>
     </div>
     <p class="note" id="exHidden" hidden>Hidden during the blind test so the numbers don’t give the settings away.</p>
   </section>
