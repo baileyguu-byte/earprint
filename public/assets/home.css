@@ -12,6 +12,7 @@
 .fmap-axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 .fmap-axis span.first { transform: none; }
 .fmap-axis span.last { transform: translateX(-100%); }
+@media (max-width: 640px) { .fmap-axis span.minor { display: none; } }
 .fmap-strip { position: relative; display: flex; height: clamp(84px, 11vw, 120px); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
 .fseg { flex: 0 0 auto; width: calc(var(--w) * 1%); min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; padding: 0 8px 9px; border-top: 5px solid var(--seg, var(--muted)); background: var(--well); background: color-mix(in oklab, var(--seg) 16%, var(--panel)); }
 .fseg + .fseg { border-left: 1px solid var(--line); }

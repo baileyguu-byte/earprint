@@ -227,7 +227,7 @@ function setTrack(t, autoplay) {
   peaks = null; lastVis = null;
   buildWavePeaks();
   applyLive();
-  renderLevel(); renderNow(); renderLoop(); renderTime(); renderFingerprint(); renderExport(); renderPlay(); markCurrent();
+  renderLevel(); renderNow(); renderLoop(); renderTime(); renderFingerprint(); renderExport(); renderPlay(); markCurrent(); renderMini();
   drawWave(); scheduleDraw();
   if (autoplay || was) play();
 }
@@ -345,6 +345,12 @@ function sugGroup(title, items) {
   });
   sugEl.append(g);
 }
+/** An exact name match first, then the most-followed artists. */
+function byFans(list, q) {
+  const s = q.trim().toLowerCase();
+  const exact = (a) => ((a.name || '').trim().toLowerCase() === s ? 1 : 0);
+  return list.slice().sort((x, y) => (exact(y) - exact(x)) || ((y.nb_fan || 0) - (x.nb_fan || 0)));
+}
 function renderSuggest(q, data, err) {
   sug.items = [];
   sug.active = -1;
@@ -355,7 +361,7 @@ function renderSuggest(q, data, err) {
     openSuggest();
     return;
   }
-  const artists = dz.dedupeArtists((data && data.artists && data.artists.data) || []).slice(0, 4);
+  const artists = byFans(dz.dedupeArtists((data && data.artists && data.artists.data) || []), q).slice(0, 4);
   const tracks = ((data && data.tracks && data.tracks.data) || []).slice(0, 5);
   const genres = dz.matchGenres(state.genres, q).slice(0, 2);
   sugGroup('Artists', artists.map((a) => ({ type: 'artist', data: a, title: a.name, sub: fansText(a.nb_fan), pic: a.picture_small })));
@@ -522,7 +528,7 @@ async function runSearch(q) {
     const genres = dz.matchGenres(state.genres, q).slice(0, 3);
     renderView({
       kind: 'results', label: 'Results for “' + q + '”',
-      artists: dz.dedupeArtists(artists).slice(0, 8), genres, tracks,
+      artists: byFans(dz.dedupeArtists(artists), q).slice(0, 8), genres, tracks,
       sub: (t) => (t.artist ? t.artist.name : '') + (t.album ? ' · ' + t.album.title : '')
     });
     if (!artists.length && !tracks.length && !genres.length) setStatus('Nothing found for “' + q + '”. Check the spelling or try another name.');
@@ -606,11 +612,24 @@ function renderNow() {
   const n = img(t.art, t.source === 'demo' ? 'demo' : '');
   n.id = 'nowArt';
   $('nowArt').replaceWith(n);
+  $('miniTitle').textContent = t.title;
+  $('miniSub').textContent = t.source === 'deezer' ? t.artist : (t.source === 'demo' ? 'Demo loop' : 'Your file');
 }
 function renderPlay() {
   const p = state.playing;
+  const icon = p ? '<path d="M6 4.5h4.2v15H6zM13.8 4.5H18v15h-4.2z"/>' : '<path d="M7 4.5v15l13-7.5z"/>';
   $('play').setAttribute('aria-label', p ? 'Pause' : 'Play');
-  $('playIcon').innerHTML = p ? '<path d="M6 4.5h4.2v15H6zM13.8 4.5H18v15h-4.2z"/>' : '<path d="M7 4.5v15l13-7.5z"/>';
+  $('playIcon').innerHTML = icon;
+  $('miniPlay').setAttribute('aria-label', p ? 'Pause' : 'Play');
+  $('miniIcon').innerHTML = icon;
+}
+
+/* Phone player bar: shown on narrow screens while the main player is scrolled out of view */
+let transportVisible = true;
+function renderMini() {
+  const show = !!state.track && !transportVisible;
+  $('mini').classList.toggle('show', show);
+  document.body.classList.toggle('has-mini', show);
 }
 let lastAriaSec = -1;
 function renderTime() {
@@ -714,6 +733,7 @@ function renderSlots() {
   $('copySlot').textContent = 'Copy ' + state.active + ' to ' + other;
   $('resetSlot').textContent = 'Reset ' + state.active;
   $('lgCurveSw').style.background = blind ? '' : (state.active === 'A' ? 'var(--a)' : 'var(--b)');
+  $('miniSlot').textContent = 'Hearing ' + (blind ? String(blind.order.indexOf(state.active) + 1) : state.active);
 }
 function renderLevel() {
   if (!state.match) { $('level').textContent = 'Volume follows the EQ, so boosts sound louder.'; return; }
@@ -967,10 +987,17 @@ function drawScope(live) {
 
   const msg = !state.track ? 'Preparing the demo loop…' : blind ? 'Hidden during the blind test. Just listen.' : '';
   if (msg) {
-    g2.fillStyle = colors['--muted'];
-    g2.textAlign = 'center';
     g2.font = (13 * dpr) + 'px "Instrument Sans", system-ui, sans-serif';
+    g2.textAlign = 'center';
+    g2.textBaseline = 'middle';
+    const tw = g2.measureText(msg).width, bw = tw + 28 * dpr, bh = 30 * dpr, bx = plotW / 2 - bw / 2, by = padT + plotH / 2 - bh / 2;
+    g2.fillStyle = rgba(colors['--panel'], 0.92);
+    g2.beginPath();
+    if (g2.roundRect) g2.roundRect(bx, by, bw, bh, 8 * dpr); else g2.rect(bx, by, bw, bh);
+    g2.fill();
+    g2.fillStyle = colors['--muted'];
     g2.fillText(msg, plotW / 2, padT + plotH / 2);
+    g2.textBaseline = 'alphabetic';
   }
 }
 
@@ -1215,6 +1242,15 @@ function init() {
   document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => endBlind(+b.dataset.pick)));
 
   $('play').addEventListener('click', () => { ensureCtx(); togglePlay(); });
+  $('miniPlay').addEventListener('click', () => { ensureCtx(); togglePlay(); });
+  $('miniSwap').addEventListener('click', () => { ensureCtx(); swap(); });
+  $('miniJump').addEventListener('click', () => { $('scopeLabel').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      transportVisible = entries[entries.length - 1].isIntersecting;
+      renderMini();
+    }).observe(document.querySelector('.transport'));
+  }
   $('vol').addEventListener('input', (e) => { if (master) master.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.02); });
   [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgCurve', 'curve']].forEach(([id, k]) => {
     $(id).checked = state.layers[k];
