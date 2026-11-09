@@ -625,8 +625,9 @@ function renderPlay() {
 }
 
 /* Phone player bar: shown on narrow screens while the main player is scrolled out of view */
-let transportVisible = true;
 function renderMini() {
+  const r = document.querySelector('.transport').getBoundingClientRect();
+  const transportVisible = r.bottom > 0 && r.top < window.innerHeight;
   const show = !!state.track && !transportVisible;
   $('mini').classList.toggle('show', show);
   document.body.classList.toggle('has-mini', show);
@@ -1245,12 +1246,8 @@ function init() {
   $('miniPlay').addEventListener('click', () => { ensureCtx(); togglePlay(); });
   $('miniSwap').addEventListener('click', () => { ensureCtx(); swap(); });
   $('miniJump').addEventListener('click', () => { $('scopeLabel').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver((entries) => {
-      transportVisible = entries[entries.length - 1].isIntersecting;
-      renderMini();
-    }).observe(document.querySelector('.transport'));
-  }
+  window.addEventListener('scroll', renderMini, { passive: true });
+  window.addEventListener('resize', renderMini);
   $('vol').addEventListener('input', (e) => { if (master) master.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.02); });
   [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgCurve', 'curve']].forEach(([id, k]) => {
     $(id).checked = state.layers[k];
