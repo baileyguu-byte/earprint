@@ -973,7 +973,7 @@ function balanceSentence(dev, subject) {
   if (!more.length && !less.length) return { text: subject.charAt(0).toUpperCase() + subject.slice(1) + ' is balanced like most songs: every octave sits inside the typical range.', more, less };
   let s = 'Compared with most songs, ' + subject + ' has ';
   if (more.length) s += 'more ' + phrase(more);
-  if (more.length && less.length) s += ' and ';
+  if (more.length && less.length) s += ', and ';
   if (less.length) s += 'less ' + phrase(less);
   return { text: s + '.', more, less };
 }

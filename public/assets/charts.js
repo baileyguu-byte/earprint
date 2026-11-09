@@ -5,6 +5,7 @@ import { BAND_LABELS, BAND_NAMES, TYPICAL } from './dsp.js';
 
 const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const hz = (i) => BAND_LABELS[i].replace('k', ' kHz') + (BAND_LABELS[i].includes('k') ? '' : ' Hz');
 const rangeLo = (i) => TYPICAL.rel.lo[i] - TYPICAL.rel.med[i];
 const rangeHi = (i) => TYPICAL.rel.hi[i] - TYPICAL.rel.med[i];
@@ -84,7 +85,7 @@ export function renderBalance(box, dev) {
   }
   s += hits(f) + '</svg>';
   box.innerHTML = s;
-  bindTips(box, f, (i) => '<b>' + hz(i) + ' · ' + esc(BAND_NAMES[i]) + '</b><span>' + sgn(dev[i]) + ' dB against the typical song</span><span class="m">Half of all songs: ' + sgn(rangeLo(i)) + ' to ' + sgn(rangeHi(i)) + ' dB</span>');
+  bindTips(box, f, (i) => '<b>' + hz(i) + ' · ' + esc(cap(BAND_NAMES[i])) + '</b><span>' + sgn(dev[i]) + ' dB against the typical song</span><span class="m">Half of all songs: ' + sgn(rangeLo(i)) + ' to ' + sgn(rangeHi(i)) + ' dB</span>');
 }
 
 /**
@@ -112,9 +113,9 @@ export function renderArtists(box, series, avg) {
   s += hits(f) + '</svg>';
   box.innerHTML = s;
   bindTips(box, f, (i) => {
-    let h = '<b>' + hz(i) + ' · ' + esc(BAND_NAMES[i]) + '</b>';
-    if (avg) h += '<span class="row"><i class="sw avg"></i>Average<em>' + sgn(avg[i]) + '</em></span>';
-    series.slice().sort((p, q) => q.dev[i] - p.dev[i]).forEach((a) => { h += '<span class="row"><i class="sw s' + a.slot + '"></i>' + esc(a.name) + '<em>' + sgn(a.dev[i]) + '</em></span>'; });
+    let h = '<b>' + hz(i) + ' · ' + esc(cap(BAND_NAMES[i])) + '</b>';
+    if (avg) h += '<span class="tr"><i class="sw avg"></i>Average<em>' + sgn(avg[i]) + '</em></span>';
+    series.slice().sort((p, q) => q.dev[i] - p.dev[i]).forEach((a) => { h += '<span class="tr"><i class="sw s' + a.slot + '"></i>' + esc(a.name) + '<em>' + sgn(a.dev[i]) + '</em></span>'; });
     return h + '<span class="m">dB against the typical song</span>';
   });
 }
