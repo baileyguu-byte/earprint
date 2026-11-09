@@ -7,9 +7,9 @@ const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFix
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const hz = (i) => BAND_LABELS[i].replace('k', ' kHz') + (BAND_LABELS[i].includes('k') ? '' : ' Hz');
-const rangeLo = (i) => TYPICAL.rel.lo[i] - TYPICAL.rel.med[i];
-const rangeHi = (i) => TYPICAL.rel.hi[i] - TYPICAL.rel.med[i];
-export const outside = (v, i) => v < rangeLo(i) || v > rangeHi(i);
+const rangeLo = (i, ref = TYPICAL) => ref.rel.lo[i] - ref.rel.med[i];
+const rangeHi = (i, ref = TYPICAL) => ref.rel.hi[i] - ref.rel.med[i];
+export const outside = (v, i, ref = TYPICAL) => v < rangeLo(i, ref) || v > rangeHi(i, ref);
 
 /** Bar with a rounded end at the value and a square end on the baseline. */
 function bar(x, w, y0, y1, r) {
@@ -65,18 +65,18 @@ function bindTips(box, f, tipFor) {
   box._hideTip = hide;
 }
 
-/** This song against the typical song: one bar per octave band. */
-export function renderBalance(box, dev) {
+/** This song against a typical song (all music, or its genre): one bar per octave band. */
+export function renderBalance(box, dev, ref = TYPICAL) {
   const f = frame(box, 210), lim = 15;
   const Y = (v) => f.pad.t + f.ph / 2 - Math.max(-lim, Math.min(lim, v)) / lim * (f.ph / 2);
   let s = '<svg width="' + f.W + '" height="' + f.H + '" viewBox="0 0 ' + f.W + ' ' + f.H + '" role="img" aria-label="How this song’s energy in each octave compares with a typical song">';
   for (let i = 0; i < 10; i++) {
     const x = f.pad.l + i * f.cw;
-    s += '<rect class="c-range" x="' + (x + f.cw * 0.14).toFixed(1) + '" width="' + (f.cw * 0.72).toFixed(1) + '" y="' + Y(rangeHi(i)).toFixed(1) + '" height="' + (Y(rangeLo(i)) - Y(rangeHi(i))).toFixed(1) + '" rx="3"/>';
+    s += '<rect class="c-range" x="' + (x + f.cw * 0.14).toFixed(1) + '" width="' + (f.cw * 0.72).toFixed(1) + '" y="' + Y(rangeHi(i, ref)).toFixed(1) + '" height="' + (Y(rangeLo(i, ref)) - Y(rangeHi(i, ref))).toFixed(1) + '" rx="3"/>';
   }
   s += grid(f, Y, [10, 0, -10]);
   for (let i = 0; i < 10; i++) {
-    const v = dev[i], out = outside(v, i), x = f.pad.l + i * f.cw, w = Math.min(22, f.cw * 0.42);
+    const v = dev[i], out = outside(v, i, ref), x = f.pad.l + i * f.cw, w = Math.min(22, f.cw * 0.42);
     s += '<path class="c-bar' + (out ? ' out' : '') + '" d="' + bar(+(x + (f.cw - w) / 2).toFixed(1), +w.toFixed(1), Y(0), Y(v), 4) + '"/>';
     if (out) {
       const ly = v >= 0 ? Y(v) - 5 : Y(v) + 13;
@@ -85,7 +85,8 @@ export function renderBalance(box, dev) {
   }
   s += hits(f) + '</svg>';
   box.innerHTML = s;
-  bindTips(box, f, (i) => '<b>' + hz(i) + ' · ' + esc(cap(BAND_NAMES[i])) + '</b><span>' + sgn(dev[i]) + ' dB against the typical song</span><span class="m">Half of all songs: ' + sgn(rangeLo(i)) + ' to ' + sgn(rangeHi(i)) + ' dB</span>');
+  const what = ref === TYPICAL ? 'songs' : ref.noun + 's';
+  bindTips(box, f, (i) => '<b>' + hz(i) + ' · ' + esc(cap(BAND_NAMES[i])) + '</b><span>' + sgn(dev[i]) + ' dB against a typical ' + esc(ref.noun) + '</span><span class="m">Half of all ' + esc(what) + ': ' + sgn(rangeLo(i, ref)) + ' to ' + sgn(rangeHi(i, ref)) + ' dB</span>');
 }
 
 /**
