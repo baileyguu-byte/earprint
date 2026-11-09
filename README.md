@@ -34,6 +34,7 @@ Deployed on Cloudflare from this repository.
 
 - Song previews, artist and genre data: Deezer's public API, called from the visitor's browser.
 - The typical song (`TYPICAL` in `dsp.js`): 128 previews, 8 from each of 16 Deezer charts, measured with the lab's own analysis in November 2026. Only the medians and quartiles are kept.
+- Typical songs per genre (`GENRE_TYPICAL` in `dsp.js`): the top 12 previews on each of 17 Deezer genre charts, measured the same way in November 2026. The lab finds a song's genre from its album on Deezer. "Even it out" and the song chart use the genre by default; "Bring out its character" always compares with all music, so a genre's own traits count as character.
 - Export formats were checked against each app's documentation (Equalizer APO configuration reference, Wavelet's import format).
 - Cheat-sheet ranges follow common mixing practice; iZotope's EQ cheat sheet is linked as further reading. The wording and graphics are Earprint's own.
 

@@ -89,7 +89,7 @@
         <div class="legend" role="group" aria-label="Scope layers">
           <label class="lg"><input type="checkbox" id="lgSpectrum" checked><i class="sp"></i>Live sound</label>
           <label class="lg"><input type="checkbox" id="lgAverage" checked><i class="av"></i>Song average</label>
-          <label class="lg"><input type="checkbox" id="lgTypical" checked><i class="ty"></i>Typical song</label>
+          <label class="lg"><input type="checkbox" id="lgTypical" checked><i class="ty"></i><span id="lgTypName">Typical song</span></label>
           <label class="lg"><input type="checkbox" id="lgCurve" checked><i class="cv" id="lgCurveSw"></i>EQ curve</label>
         </div>
       </div>
@@ -100,10 +100,10 @@
           <ul>
             <li><b>Live sound</b> is the song as you hear it, after your EQ.</li>
             <li><b>Song average</b> is the balance of the whole clip before EQ. Where it rises above the shaded band, this song has more energy there than most songs. Where it drops below, less.</li>
-            <li><b>Typical song</b> is the middle half of 128 popular songs across 16 genres, measured the same way. It’s a reference, not a target.</li>
+            <li><b>Typical song</b> is the middle half of popular songs measured the same way: songs of the same genre when Earprint knows it, otherwise 128 songs across 16 genres. It’s a reference, not a target.</li>
             <li><b>EQ curve</b> shows how much each part of the range is turned up or down. Drag a dot or a fader to change it.</li>
             <li>All of it shares one dB scale, with 0 dB at the song’s average level. Music naturally gets quieter towards the treble; the scope evens that out by 3 dB per octave, so a well-balanced mix looks roughly level.</li>
-            <li><b>Auto fit</b>, below, can set the curve for you. “Even it out” moves the song towards the band. “Bring out its character” pushes it further from it.</li>
+            <li><b>Auto fit</b>, below, can set the curve for you. “Even it out” moves the song towards the band. “Bring out its character” lifts the parts where the song has more than most music, so its genre’s traits count too, and never cuts.</li>
           </ul>
         </details>
       </div>
@@ -213,10 +213,18 @@
 
   <div class="bottom">
     <section class="panel" id="fp" aria-labelledby="fpLabel">
-      <div class="panel-head"><h2 class="label" id="fpLabel">This song against a typical song</h2></div>
+      <div class="panel-head">
+        <h2 class="label" id="fpLabel">This song against a typical <span id="fpRefName">song</span></h2>
+        <div class="seg" role="radiogroup" aria-label="Compare with">
+          <span class="seg-label">Compare with</span>
+          <label id="refGenreLabel"><input type="radio" name="ref" value="genre" id="refGenre"><span id="refGenreName">Its genre</span></label>
+          <label><input type="radio" name="ref" value="all" id="refAll">All music</label>
+        </div>
+      </div>
+      <p class="note" id="refNote"></p>
       <div class="chart" id="fpChart"></div>
       <p class="insight" id="fpText">Analysing the song…</p>
-      <p class="note">Bars show how much more or less energy this song has in each octave than the median of 128 popular songs. The grey boxes hold half of all songs, so bars outside them are unusual.</p>
+      <p class="note">Bars show how much more or less energy this song has in each octave than the typical song it’s compared with. The grey boxes hold half of those songs, so bars outside them are unusual. The same comparison drives the shaded band on the scope and “Even it out”.</p>
     </section>
 
     <section class="panel" id="artistsPanel" aria-labelledby="artLabel" tabindex="-1">

@@ -3,7 +3,7 @@ import * as dz from './deezer.js';
 import {
   AC, BANDS, BAND_LABELS, BAND_NAMES, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
   responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F,
-  LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep
+  LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep, genreRef
 } from './dsp.js';
 import { makeDemo } from './demo.js';
 import { FORMATS, buildExport, formatForLayout } from './exports.js';
@@ -95,6 +95,7 @@ const state = {
   fitStrength: { 0.35: 'gentle', 0.65: 'medium', 1: 'strong' }[oldStrength] || (['gentle', 'medium', 'strong'].includes(oldStrength) ? oldStrength : 'medium'),
   prevLayout: null,
   edited: false,
+  ref: store.get('ref', 'genre') === 'all' ? 'all' : 'genre',
   undo: null,
   hot: -1,
   track: null,
@@ -289,7 +290,7 @@ function setTrack(t, autoplay) {
   peaks = null; lastVis = null;
   buildWavePeaks();
   applyLive();
-  renderLevel(); renderNow(); renderLoop(); renderTime(); renderFingerprint(); renderFitAvailability(); renderExport(); renderPlay(); markCurrent(); renderMini(); renderBandInfo();
+  renderLevel(); renderNow(); renderLoop(); renderTime(); renderRef(); renderFingerprint(); renderFitAvailability(); renderExport(); renderPlay(); markCurrent(); renderMini(); renderBandInfo();
   drawWave(); scheduleDraw();
   if (autoplay || was) play();
 }
@@ -303,14 +304,17 @@ async function playDeezerTrack(t) {
     const fresh = await dz.track(t.id);
     if (fresh.readable === false) throw new Error('Deezer doesn’t offer this song in your country.');
     if (!fresh.preview) throw new Error('Deezer has no preview for this song.');
+    // The album's genre picks the typical song to compare with (if Earprint has measured it).
+    const genreP = fresh.album && fresh.album.id ? dz.call('/album/' + fresh.album.id).then((a) => a.genre_id).catch(() => null) : Promise.resolve(null);
     // Previews are streamed into memory only: never cached, stored or offered as a download.
     const res = await fetch(fresh.preview, { cache: 'no-store' });
     if (!res.ok) throw new Error('The preview server returned an error (' + res.status + ').');
     const buffer = await decode(await res.arrayBuffer());
     const fp = await analyse(buffer).catch(() => null);
+    const genre = genreRef(await genreP);
     if (token !== state.loadToken) return;
     setTrack({
-      id: fresh.id, buffer, fp, source: 'deezer',
+      id: fresh.id, buffer, fp, genre, source: 'deezer',
       title: fresh.title_short || fresh.title,
       artist: fresh.artist ? fresh.artist.name : '',
       art: fresh.album ? (fresh.album.cover_medium || fresh.album.cover_small) : '',
@@ -954,7 +958,8 @@ function renderBandInfo() {
   const fp = state.track && state.track.fp;
   if (fp) {
     const k = nearestOctave(b.f);
-    box.append(' This song: ' + dbText(roundStep(vsTypical(fp.rel)[k], 0.5)) + ' against the typical song' + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
+    const ref = refNow();
+    box.append(' This song: ' + dbText(roundStep(vsTypical(fp.rel, ref)[k], 0.5)) + ' against a typical ' + ref.noun + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
   }
   if (!state.blind) box.append(' Setting ' + state.active + ': ' + dbText(gainsOf(state.active)[i]) + '.');
 }
@@ -1026,7 +1031,7 @@ function renderFitAvailability() {
   $('fitEven').disabled = !fp;
   $('fitBoost').disabled = !fp;
   $('fitIntro').textContent = fp
-    ? 'Builds a starting point from how “' + state.track.title + '” compares with a typical song, on your ' + state.layout.count + ' bands. Every band stays within ±' + Math.min(GUIDE, limitNow()) + ' dB.'
+    ? 'Builds a starting point for “' + state.track.title + '” on your ' + state.layout.count + ' bands. “Even it out” moves it towards a typical ' + refNow().noun + '. “Bring out its character” lifts what it has more of than most music, its genre’s traits included, and never cuts. Every band stays within ±' + Math.min(GUIDE, limitNow()) + ' dB.'
     : 'Builds a starting point from how the song compares with a typical song. Load a song to use it.';
 }
 function applyFit(dev, sign, opts) {
@@ -1034,15 +1039,18 @@ function applyFit(dev, sign, opts) {
   const dir = sign < 0 ? 'even' : 'boost';
   const g = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, state.layout, state.step);
   const { peak, at } = peakChange(g);
+  const against = opts.against || 'song';
   if (Math.abs(peak) < 0.5) {
-    setToolMsg(opts.subject + ' already sits close to a typical song, so ' + (sign < 0 ? 'evening it out' : 'bringing out its character') + ' at ' + state.fitStrength + ' strength changes almost nothing. Try Strong, a quick fix, or shape it by ear.');
+    setToolMsg(sign < 0
+      ? opts.subject + ' already sits close to a typical ' + against + ', so evening it out at ' + state.fitStrength + ' strength changes almost nothing. Try Strong, a quick fix, or shape it by ear.'
+      : 'Nothing in ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' stands out above a typical ' + against + ', so there’s nothing to lift. Try “Even it out”, a quick fix, or shape it by ear.');
     return;
   }
   loadGains(opts.name, g, 'auto fit');
   let tail = '';
   if (Math.abs(peak) < 2) {
     tail = sign < 0
-      ? ' That’s because ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' is already close to a typical song. For a bigger difference, try Strong or “Bring out its character”.'
+      ? ' That’s because ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' is already close to a typical ' + against + '. For a bigger difference, try Strong or “Bring out its character”.'
       : ' For a bigger difference, try Strong.';
   }
   setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. The biggest change is ' + dbText(roundStep(peak, 0.5)) + ' around ' + fmtF(at) + ', which is ' + audibility(peak) + '.' + tail + ' Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
@@ -1050,7 +1058,12 @@ function applyFit(dev, sign, opts) {
 function fitSong(sign) {
   const t = state.track;
   if (!t || !t.fp) return;
-  applyFit(vsTypical(t.fp.rel), sign, {
+  // Evening out uses the chosen comparison (its genre by default). Bringing out always compares
+  // with all music: against its own genre a typical metal song has no character to lift, and a
+  // band like Animals as Leaders only got its low end lifted, not the guitar bite it shares with metal.
+  const ref = sign > 0 ? TYPICAL : refNow();
+  applyFit(vsTypical(t.fp.rel, ref), sign, {
+    against: ref.noun,
     subject: '“' + t.title + '”',
     name: sign < 0 ? 'Evened out' : 'Its character',
     verb: sign < 0 ? 'evens out “' + t.title + '”' : 'brings out what makes “' + t.title + '” different'
@@ -1135,13 +1148,38 @@ function endBlind(pickIdx) {
 }
 
 /* ---------- This song against a typical song ---------- */
-function balanceSentence(dev, subject) {
-  const out = dev.map((v, i) => [v, i]).filter(([v, i]) => outside(v, i));
+/** Show which typical song the chart, the scope band and auto fit are using. */
+function renderRef() {
+  const g = state.track && state.track.genre, ref = refNow();
+  const gl = $('refGenre');
+  gl.disabled = !g;
+  gl.checked = state.ref === 'genre';
+  $('refAll').checked = state.ref === 'all';
+  $('refGenreName').textContent = g ? g.name : 'Its genre';
+  $('refGenreLabel').title = g ? 'Compare with ' + g.songs + ' popular ' + g.noun + 's' : 'Earprint doesn’t know this song’s genre, or hasn’t measured it yet';
+  $('fpRefName').textContent = ref.noun;
+  $('lgTypName').textContent = 'Typical ' + ref.noun;
+  $('refNote').textContent = ref === TYPICAL
+    ? (state.ref === 'genre' && state.track && state.track.source === 'deezer' ? 'Earprint hasn’t measured this song’s genre, so it’s compared with all music: 128 popular songs from 16 genres.' : 'Compared with all music: 128 popular songs from 16 genres.')
+    : 'Compared with ' + ref.songs + ' popular ' + ref.noun + 's, so the song is judged against its own kind of music. “Bring out its character” still compares with all music, so its genre’s traits count too.';
+}
+function setRef(r) {
+  state.ref = r;
+  store.set('ref', r);
+  renderRef(); renderFingerprint(); renderFitAvailability(); renderBandInfo(); scheduleDraw();
+}
+/** The typical song this song is compared with: its genre's when known and chosen, else all music. */
+function refNow() {
+  const g = state.track && state.track.genre;
+  return state.ref === 'genre' && g ? g : TYPICAL;
+}
+function balanceSentence(dev, subject, ref = TYPICAL) {
+  const out = dev.map((v, i) => [v, i]).filter(([v, i]) => outside(v, i, ref));
   const more = out.filter(([v]) => v > 0).sort((a, b) => b[0] - a[0]).slice(0, 2);
   const less = out.filter(([v]) => v < 0).sort((a, b) => a[0] - b[0]).slice(0, 2);
   const phrase = (list) => list.map(([v, i]) => BAND_NAMES[i] + ' (' + sgn(v, 0) + ' dB at ' + hz(i) + ')').join(' and ');
-  if (!more.length && !less.length) return { text: subject.charAt(0).toUpperCase() + subject.slice(1) + ' is balanced like most songs: every octave sits inside the typical range.', more, less };
-  let s = 'Compared with most songs, ' + subject + ' has ';
+  if (!more.length && !less.length) return { text: subject.charAt(0).toUpperCase() + subject.slice(1) + ' is balanced like most ' + ref.noun + 's: every octave sits inside the typical range.', more, less };
+  let s = 'Compared with most ' + ref.noun + 's, ' + subject + ' has ';
   if (more.length) s += 'more ' + phrase(more);
   if (more.length && less.length) s += ', and ';
   if (less.length) s += 'less ' + phrase(less);
@@ -1154,9 +1192,10 @@ function renderFingerprint() {
     $('fpText').textContent = state.track ? 'This song couldn’t be analysed in this browser.' : 'Analysing the song…';
     return;
   }
-  const dev = vsTypical(fp.rel);
-  renderBalance(box, dev);
-  const { text, more } = balanceSentence(dev, 'this song');
+  const ref = refNow();
+  const dev = vsTypical(fp.rel, ref);
+  renderBalance(box, dev, ref);
+  const { text, more } = balanceSentence(dev, 'this song', ref);
   let tail = '';
   if (more.length) {
     const top = more[0][1];
@@ -1296,6 +1335,7 @@ function fitArtists(sign) {
   if (!avg) return;
   const many = state.picks.length > 1;
   applyFit(avg, sign, {
+    against: 'song',
     subject: many ? 'Your artists’ music' : 'This artist’s music',
     name: sign < 0 ? 'Artists, evened' : 'Artists’ character',
     verb: sign < 0 ? 'evens out your artists' : 'brings out what your artists share'
@@ -1445,9 +1485,9 @@ function drawScope(live) {
   g2.save();
   g2.beginPath(); g2.rect(0, 0, G.plotW, H); g2.clip();
 
-  // The typical song: middle half of 128 songs, with the median dotted.
+  // The typical song (all music or its genre): the middle half of those songs, with the median dotted.
   if (state.layers.typical) {
-    const tc = TYPICAL.curve, n = tc.med.length;
+    const tc = refNow().curve, n = tc.med.length;
     g2.beginPath();
     for (let k = 0; k < n; k++) { const x = G.X(typicalF(k)), y = G.Y(tc.hi[k]); if (k) g2.lineTo(x, y); else g2.moveTo(x, y); }
     for (let k = n - 1; k >= 0; k--) g2.lineTo(G.X(typicalF(k)), G.Y(tc.lo[k]));
@@ -1855,6 +1895,7 @@ function init() {
   $('blindCancel').addEventListener('click', () => endBlind(null));
   document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => endBlind(+b.dataset.pick)));
 
+  document.querySelectorAll('input[name="ref"]').forEach((r) => r.addEventListener('change', () => { if (r.checked) setRef(r.value); }));
   $('artRun').addEventListener('click', runArtists);
   $('artCancel').addEventListener('click', cancelArtists);
   $('artEven').addEventListener('click', () => { ensureCtx(); fitArtists(-1); });
