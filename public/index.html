@@ -1,1181 +1,190 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-</head>
-<body>
-<title>Earprint EQ Lab</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<title>Earprint · EQ shaped to the music you play</title>
+<meta name="description" content="Play real song previews, see where each song's sound sits, shape it with a 10-band equaliser and compare settings blind at matched volume. Then copy the result into your music app.">
+<meta property="og:title" content="Earprint · EQ shaped to the music you play">
+<meta property="og:description" content="Shape your EQ on the songs you actually listen to, compare settings blind, and export to Apple Music, Spotify, Equalizer APO or Wavelet.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Michroma&display=swap">
-<style>
-/* Layout: a hi-fi console. Source rail on the left, scope and transport on the right, the fader bank across the full width below; stacks on phones. */
-:root {
-  --bg: #E9ECEF;
-  --panel: #F7F8F9;
-  --well: #DEE2E7;
-  --ink: #14171B;
-  --muted: #59616B;
-  --line: #CBD1D8;
-  --a: #B05A08;
-  --b: #1D67AA;
-  --on-a: #FFFFFF;
-  --on-b: #FFFFFF;
-  --spec: #2A3340;
-  --display: 'Michroma', 'Eurostile', 'Arial Black', system-ui, sans-serif;
-  --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --r: 12px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #101216; --panel: #181B20; --well: #0B0D10; --ink: #E7EAEE; --muted: #98A1AC; --line: #2B3038;
-    --a: #F0A040; --b: #63ABEB; --on-a: #14171B; --on-b: #0D1520; --spec: #C9D1DB;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #101216; --panel: #181B20; --well: #0B0D10; --ink: #E7EAEE; --muted: #98A1AC; --line: #2B3038;
-  --a: #F0A040; --b: #63ABEB; --on-a: #14171B; --on-b: #0D1520; --spec: #C9D1DB;
-  color-scheme: dark;
-}
-* { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
-.wrap {
-  max-width: 1200px; margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 20px 48px;
-  display: grid; gap: 16px;
-}
-button, input, select { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--b); outline-offset: 2px; }
+<link rel="stylesheet" href="/assets/earprint.css">
+<link rel="stylesheet" href="/assets/home.css">
+</head>
+<body>
+<header class="site-head"><div class="wrap">
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="bar-a" x="2" y="10" width="3" height="11" rx="1.5"/><rect class="bar-a" x="7" y="5" width="3" height="16" rx="1.5"/><rect class="bar-n" x="12" y="9" width="3" height="12" rx="1.5"/><rect class="bar-b" x="17" y="3" width="3" height="18" rx="1.5"/></svg>EARPRINT</a>
+  <nav class="site-nav" aria-label="Main"><a href="/" aria-current="page">How it works</a><a href="/lab/">EQ lab</a></nav>
+</div></header>
 
-/* Header */
-.mast { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; padding-block: 4px 2px; }
-.brand { font-family: var(--display); font-size: 22px; letter-spacing: .1em; margin: 0; line-height: 1.2; }
-.chip { font: 500 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; }
-.tagline { color: var(--muted); margin: 0; flex-basis: 100%; max-width: 62ch; text-wrap: balance; }
-
-.label { font-family: var(--display); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 14px; align-content: start; min-width: 0; }
-.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.top { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
-.bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 880px) { .top, .bottom { grid-template-columns: minmax(0, 1fr); } }
-
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; font-size: 13.5px; padding: 8px 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; cursor: pointer; line-height: 1.2; }
-.btn:hover { background: var(--well); }
-.btn:disabled { opacity: .45; cursor: default; }
-.btn.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.btn.solid:hover { opacity: .9; }
-kbd { font: 500 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--muted); }
-
-/* Source rail */
-.search { display: flex; gap: 8px; }
-.search input { flex: 1; min-width: 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.notice { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; color: var(--muted); font-size: 13.5px; margin: 0; }
-.status { color: var(--muted); font-size: 13px; margin: 0; min-height: 1.2em; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.achip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); cursor: pointer; font-size: 13.5px; max-width: 100%; }
-.achip:hover { border-color: var(--muted); }
-.achip img, .achip .ph { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: var(--well); flex: none; }
-.achip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.five { display: flex; flex-wrap: wrap; gap: 6px; }
-.fchip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-size: 13.5px; overflow: hidden; }
-.fchip button { border: 0; background: none; cursor: pointer; padding: 5px 4px 5px 11px; }
-.fchip button.x { padding: 5px 10px 5px 6px; color: var(--muted); }
-.fchip button.x:hover { color: var(--ink); }
-.empty { color: var(--muted); font-size: 13px; }
-.sub { display: grid; gap: 8px; }
-.sub-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.tracks { display: grid; gap: 4px; }
-#topTracks { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
-.sub-head .label { min-width: 0; }
-#addFive { white-space: nowrap; flex: none; }
-.trow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px; border: 1px solid transparent; border-radius: 8px; background: none; text-align: left; cursor: pointer; width: 100%; }
-.trow:hover { background: var(--well); }
-.trow[aria-current="true"] { background: var(--well); border-color: var(--line); }
-.trow img, .trow .ph { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--well); }
-.trow .ph.demo { background: conic-gradient(from 200deg, var(--a), var(--b), var(--a)); }
-.trow .t { min-width: 0; }
-.trow .t b { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trow .t small { display: block; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trow .d { font: 400 12px var(--mono); color: var(--muted); }
-.trow:disabled { opacity: .5; cursor: default; }
-.divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
-.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.credit { font-size: 12px; color: var(--muted); margin: 0; }
-.credit a { color: inherit; }
-
-/* Scope */
-.legend { display: flex; flex-wrap: wrap; gap: 6px; }
-.lg { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; user-select: none; }
-.lg input { position: absolute; opacity: 0; pointer-events: none; }
-.lg:has(input:focus-visible) { outline: 2px solid var(--b); outline-offset: 2px; }
-.lg i { width: 14px; height: 3px; border-radius: 2px; background: var(--spec); }
-.lg i.av { background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 5px); }
-.lg i.cv { background: var(--a); }
-.lg:not(:has(input:checked)) { opacity: .45; text-decoration: line-through; }
-.well { position: relative; background: var(--well); border-radius: 10px; overflow: hidden; }
-#scope { display: block; width: 100%; height: clamp(210px, 28vw, 310px); touch-action: pan-y; }
-.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
-.playbtn { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; cursor: pointer; flex: none; }
-.playbtn svg { width: 18px; height: 18px; fill: currentColor; }
-.now { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 220px; }
-.now img, .now .ph { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--well); flex: none; }
-.now .ph.demo { background: conic-gradient(from 200deg, var(--a), var(--b), var(--a)); }
-.now .t { min-width: 0; }
-.now b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now small { display: block; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now small a { color: inherit; }
-.scrub { display: flex; align-items: center; gap: 10px; flex: 2 1 260px; min-width: 0; }
-.scrub input { flex: 1; min-width: 0; accent-color: var(--ink); }
-.time { font: 400 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.vol { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
-.vol input { width: 90px; accent-color: var(--ink); }
-
-/* EQ */
-.eq { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 22px; }
-@media (max-width: 880px) { .eq { grid-template-columns: minmax(0, 1fr); } }
-.ab { display: grid; gap: 12px; align-content: start; }
-.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.slot { display: grid; gap: 2px; justify-items: start; text-align: left; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; min-width: 0; }
-.slot .k { font-family: var(--display); font-size: 18px; line-height: 1.1; }
-.slot .n { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.slot[data-slot="A"] { --c: var(--a); --on: var(--on-a); }
-.slot[data-slot="B"] { --c: var(--b); --on: var(--on-b); }
-.slot .k { color: var(--c); }
-.slot[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: var(--on); }
-.slot[aria-pressed="true"] .k, .slot[aria-pressed="true"] .n { color: var(--on); }
-.blindmode .slot { --c: var(--ink); --on: var(--bg); }
-.row { display: flex; flex-wrap: wrap; gap: 8px; }
-.row > * { flex: 1 1 auto; }
-select.btn { appearance: auto; }
-.switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; }
-.switch input { width: 36px; height: 20px; accent-color: var(--ink); }
-.level { font: 400 12px var(--mono); color: var(--muted); margin: -6px 0 0; }
-.blind { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
-.blind p { margin: 0; font-size: 13.5px; }
-.result { font-size: 13.5px; padding: 10px 12px; border-radius: 8px; background: var(--well); margin: 0; }
-
-.bank { position: relative; display: grid; gap: 6px; min-width: 0; }
-.faders { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; --slot: var(--a); }
-.faders.slot-B { --slot: var(--b); }
-.fcol { display: grid; justify-items: center; gap: 6px; min-width: 0; }
-.fread { font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
-.fader { position: relative; height: 210px; padding-block: 10px; width: 100%; display: flex; justify-content: center; cursor: ns-resize; touch-action: none; border-radius: 6px; }
-.ftrack { position: relative; width: 6px; height: 100%; background: var(--well); border-radius: 3px; }
-.fzero { position: absolute; left: -9px; right: -9px; top: 50%; height: 1px; background: var(--muted); opacity: .5; }
-.ffill { position: absolute; left: 0; right: 0; background: var(--slot); border-radius: 3px; }
-.fthumb { position: absolute; left: 50%; width: 30px; height: 16px; transform: translate(-50%, 50%); background: var(--panel); border: 1.5px solid var(--slot); border-radius: 5px; box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
-.fthumb::after { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 1.5px; margin-top: -.75px; background: var(--slot); }
-.fader:focus-visible { outline: none; }
-.fader:focus-visible .fthumb { outline: 2px solid var(--b); outline-offset: 2px; }
-.flab { font: 400 11.5px var(--mono); color: var(--muted); }
-.scale { display: flex; justify-content: space-between; font: 400 11px var(--mono); color: var(--muted); }
-.mask { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; font-size: 14px; color: var(--muted); background: var(--panel); background: color-mix(in srgb, var(--panel) 88%, transparent); border-radius: 8px; }
-@media (max-width: 480px) {
-  .fader { height: 170px; }
-  .fthumb { width: 24px; }
-  .fread { font-size: 10px; }
-  .flab { font-size: 10px; }
-}
-
-/* Fingerprint + export */
-#fp svg { width: 100%; height: auto; display: block; }
-.fp-zero { stroke: var(--muted); stroke-width: 1; opacity: .6; }
-.fp-bar { fill: var(--spec); opacity: .35; }
-.fp-bar.hot { fill: var(--ink); opacity: .9; }
-.fp-lab { fill: var(--muted); font: 400 10px var(--mono); }
-.fp-val { fill: var(--ink); font: 500 10px var(--mono); }
-.insight { margin: 0; font-size: 14px; max-width: 62ch; }
-.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-.tab { font-size: 12.5px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); cursor: pointer; }
-.tab[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-pre.out { margin: 0; font: 400 12.5px/1.6 var(--mono); background: var(--well); border-radius: 8px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
-.note { margin: 0; font-size: 13px; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
-</style>
-
-<div class="wrap">
-  <header class="mast">
-    <h1 class="brand">EARPRINT</h1>
-    <span class="chip">Prototype</span>
-    <p class="tagline">Play a real song, shape the sound with a 10-band EQ, and compare two settings at matched volume.</p>
-  </header>
-
-  <div class="top">
-    <section class="panel" aria-labelledby="srcLabel">
-      <h2 class="label" id="srcLabel">Pick a track</h2>
-      <form class="search" id="searchForm" role="search">
-        <input id="q" type="search" placeholder="Search an artist" aria-label="Search an artist" autocomplete="off">
-        <button class="btn solid" type="submit">Search</button>
-      </form>
-      <p class="notice" id="hostNote" hidden>Artist search can't run inside this preview because it blocks other websites. Put this page on any normal web host and search works. The demo loop and your own audio files work here now.</p>
-      <p class="status" id="status" aria-live="polite"></p>
-
-      <div class="sub" id="artistsBox" hidden>
-        <div class="sub-head"><h3 class="label" id="artistsLabel">Popular on Deezer</h3></div>
-        <div class="chips" id="artists"></div>
-      </div>
-
-      <div class="sub">
-        <div class="sub-head"><h3 class="label">My five</h3><span class="empty" id="fiveCount">0 of 5</span></div>
-        <div class="five" id="five"></div>
-      </div>
-
-      <div class="sub" id="topBox" hidden>
-        <div class="sub-head"><h3 class="label" id="topLabel">Top tracks</h3><button class="btn" type="button" id="addFive">Add to my five</button></div>
-        <div class="tracks" id="topTracks"></div>
-      </div>
-
-      <div class="divider">or</div>
-      <div class="tracks">
-        <button class="trow" type="button" id="demoRow"><span class="ph demo" aria-hidden="true"></span><span class="t"><b>Demo loop</b><small>Drums, bass, pads and a pluck, made in your browser</small></span><span class="d" id="demoDur"></span></button>
-      </div>
-      <button class="btn" type="button" id="fileBtn">Use an audio file from your device</button>
-      <input type="file" id="file" accept="audio/*" hidden>
-      <p class="credit">Song previews and artist data from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>. 30-second clips only.</p>
-    </section>
-
-    <section class="panel" aria-labelledby="scopeLabel">
-      <div class="panel-head">
-        <h2 class="label" id="scopeLabel">Frequency scope</h2>
-        <div class="legend" role="group" aria-label="Scope layers">
-          <label class="lg"><input type="checkbox" id="lgSpectrum" checked><i></i>Live sound</label>
-          <label class="lg"><input type="checkbox" id="lgAverage" checked><i class="av"></i>Track average</label>
-          <label class="lg"><input type="checkbox" id="lgCurve" checked><i class="cv" id="lgCurveSw"></i>EQ curve</label>
-        </div>
-      </div>
-      <div class="well"><canvas id="scope" aria-label="Frequency scope showing the live spectrum, the track's average spectrum and the EQ curves for settings A and B" role="img"></canvas></div>
-      <div class="transport">
-        <button class="playbtn" type="button" id="play" aria-label="Play"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 4.5v15l13-7.5z"/></svg></button>
-        <div class="now"><span class="ph demo" id="nowArt" aria-hidden="true"></span><div class="t"><b id="nowTitle">Demo loop</b><small id="nowSub">Preparing…</small></div></div>
-        <div class="scrub"><span class="time" id="tCur">0:00</span><input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="Position"><span class="time" id="tDur">0:00</span></div>
-        <label class="vol" for="vol">Vol <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8"></label>
-      </div>
-    </section>
-  </div>
-
-  <section class="panel" aria-labelledby="eqLabel">
-    <div class="panel-head">
-      <h2 class="label" id="eqLabel">Equaliser</h2>
-      <span class="note">Drag a fader, use arrow keys, or double-click to reset it. <kbd>X</kbd> switches A and B, <kbd>Space</kbd> plays.</span>
+<main class="wrap">
+  <section class="hero" aria-labelledby="heroTitle">
+    <p class="label">EQ for the music you actually play</p>
+    <h1 id="heroTitle">Your music has a fingerprint. Shape your EQ to fit it.</h1>
+    <p class="lead">Earprint plays real previews of the artists and songs you choose, shows where each song’s energy sits from deep bass to high treble, and lets you shape it with a 10-band equaliser. Compare two settings blind at the same volume, then copy the one you prefer into your music app.</p>
+    <div class="cta">
+      <a class="btn solid big" href="/lab/">Open the EQ lab</a>
+      <a class="btn big" href="#basics">How EQ works</a>
+      <span class="aside">Free prototype. Runs in your browser, no account needed.</span>
     </div>
-    <div class="eq">
-      <div class="ab" id="abBox">
-        <div class="slots" role="group" aria-label="Settings to compare">
-          <button class="slot" type="button" data-slot="A" aria-pressed="true"><span class="k">A</span><span class="n" id="nameA">Flat</span></button>
-          <button class="slot" type="button" data-slot="B" aria-pressed="false"><span class="k">B</span><span class="n" id="nameB">Warm</span></button>
-        </div>
-        <button class="btn solid" type="button" id="swap">Switch A and B</button>
-        <label class="switch" for="match">Match loudness <input type="checkbox" id="match" role="switch"></label>
-        <p class="level" id="level"></p>
-        <div class="row">
-          <select class="btn" id="preset" aria-label="Load a preset into the selected setting"></select>
-        </div>
-        <div class="row">
-          <button class="btn" type="button" id="copySlot">Copy A to B</button>
-          <button class="btn" type="button" id="resetSlot">Reset A</button>
-        </div>
-        <div class="blind">
-          <p id="blindIntro">Blind test: hide which setting is which, listen to both, then pick one.</p>
-          <button class="btn" type="button" id="blindStart">Start blind test</button>
-          <div class="row" id="blindPick" hidden>
-            <button class="btn solid" type="button" data-pick="0">I prefer 1</button>
-            <button class="btn solid" type="button" data-pick="1">I prefer 2</button>
-            <button class="btn" type="button" id="blindCancel">Cancel</button>
-          </div>
-          <p class="result" id="blindResult" hidden></p>
-        </div>
+
+    <figure class="fmap" aria-labelledby="fmapCap">
+      <div class="fmap-axis" aria-hidden="true">
+        <span class="first" style="left:0">20 Hz</span><span style="left:13.3%">50</span><span style="left:23.3%">100</span><span style="left:33.3%">200</span><span style="left:46.6%">500</span><span style="left:56.6%">1k</span><span style="left:66.6%">2k</span><span style="left:79.9%">5k</span><span style="left:89.9%">10k</span><span class="last" style="left:100%">20 kHz</span>
       </div>
-      <div class="bank">
-        <div class="faders" id="faders"></div>
-        <div class="scale" aria-hidden="true"><span>Hz</span><span>Range ±12 dB</span></div>
-        <div class="mask" id="mask" hidden>Settings are hidden during the blind test.</div>
+      <div class="fmap-strip">
+        <div class="fseg seg-1" style="--w:15.9"><b>Sub-bass</b><small>20–60 Hz</small></div>
+        <div class="fseg seg-2" style="--w:20.7"><b>Bass</b><small>60–250 Hz</small></div>
+        <div class="fseg seg-3" style="--w:10"><b>Low mids</b><small>250–500</small></div>
+        <div class="fseg seg-4" style="--w:20.1"><b>Mids</b><small>500 Hz–2 kHz</small></div>
+        <div class="fseg seg-5" style="--w:10"><b>Upper mids</b><small>2–4 kHz</small></div>
+        <div class="fseg seg-6" style="--w:5.9"><b>Presence</b><small>4–6 kHz</small></div>
+        <div class="fseg seg-7" style="--w:17.4"><b>Brilliance and air</b><small>6–20 kHz</small></div>
+        <svg class="fmap-curve" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
+          <line class="zero" x1="0" y1="60" x2="1000" y2="60"/>
+          <path class="eq" pathLength="1" d="M0.0 56.8 L12.5 55.7 L25.0 54.4 L37.5 52.9 L50.0 51.3 L62.5 49.5 L75.0 47.7 L87.5 45.9 L100.0 44.3 L112.5 42.9 L125.0 41.9 L137.5 41.4 L150.0 41.3 L162.5 41.6 L175.0 42.5 L187.5 43.7 L200.0 45.2 L212.5 47.0 L225.0 48.8 L237.5 50.8 L250.0 52.6 L262.5 54.4 L275.0 56.1 L287.5 57.7 L300.0 59.2 L312.5 60.6 L325.0 61.9 L337.5 63.1 L350.0 64.2 L362.5 65.1 L375.0 65.9 L387.5 66.4 L400.0 66.6 L412.5 66.5 L425.0 66.2 L437.5 65.7 L450.0 65.0 L462.5 64.2 L475.0 63.4 L487.5 62.7 L500.0 62.0 L512.5 61.5 L525.0 61.0 L537.5 60.7 L550.0 60.4 L562.5 60.3 L575.0 60.1 L587.5 60.0 L600.0 59.9 L612.5 59.8 L625.0 59.6 L637.5 59.3 L650.0 59.0 L662.5 58.4 L675.0 57.8 L687.5 57.0 L700.0 56.1 L712.5 55.1 L725.0 54.2 L737.5 53.5 L750.0 52.9 L762.5 52.5 L775.0 52.3 L787.5 52.2 L800.0 52.2 L812.5 52.2 L825.0 52.0 L837.5 51.7 L850.0 51.1 L862.5 50.3 L875.0 49.5 L887.5 48.7 L900.0 48.0 L912.5 47.5 L925.0 47.4 L937.5 47.6 L950.0 48.2 L962.5 49.0 L975.0 50.1 L987.5 51.4 L1000.0 52.7"/>
+        </svg>
       </div>
+      <figcaption id="fmapCap">Everything you hear sits somewhere between about 20 Hz and 20 kHz. Each slider on an equaliser turns one slice of that range up or down. <b>The line shows an example setting:</b> a gentle bass lift, a small dip in the low mids and a touch more air.</figcaption>
+    </figure>
+
+    <ol class="fbands" aria-label="What lives in each part of the range">
+      <li class="seg-1"><span class="sw" aria-hidden="true"></span><b>Sub-bass</b><span class="rng">20–60 Hz</span><p>The rumble you feel more than hear: 808s, synth bass and the thump of a kick drum. Small earbuds with a loose fit barely reproduce it.</p></li>
+      <li class="seg-2"><span class="sw" aria-hidden="true"></span><b>Bass</b><span class="rng">60–250 Hz</span><p>Punch and weight: kick drums, bass guitar, the low notes of a piano. Too much makes a mix boomy.</p></li>
+      <li class="seg-3"><span class="sw" aria-hidden="true"></span><b>Low mids</b><span class="rng">250–500 Hz</span><p>Warmth and body. Too much sounds muddy or boxy; too little sounds thin.</p></li>
+      <li class="seg-4"><span class="sw" aria-hidden="true"></span><b>Mids</b><span class="rng">500 Hz–2 kHz</span><p>The core of vocals, guitars and keys. Cutting here makes music sound hollow or distant.</p></li>
+      <li class="seg-5"><span class="sw" aria-hidden="true"></span><b>Upper mids</b><span class="rng">2–4 kHz</span><p>Clarity and bite. Ears are most sensitive around here, so small boosts quickly turn harsh.</p></li>
+      <li class="seg-6"><span class="sw" aria-hidden="true"></span><b>Presence</b><span class="rng">4–6 kHz</span><p>Definition on voices, snares and guitar picking. A little lift brings vocals forward.</p></li>
+      <li class="seg-7"><span class="sw" aria-hidden="true"></span><b>Brilliance and air</b><span class="rng">6–20 kHz</span><p>Cymbals, breath and shimmer. Too much brings out hiss and sharp “s” sounds.</p></li>
+    </ol>
+  </section>
+
+  <section class="sec" id="basics" aria-labelledby="basicsTitle">
+    <div class="sec-head">
+      <p class="label">The basics</p>
+      <h2 id="basicsTitle">What an equaliser does</h2>
+    </div>
+    <div class="cols">
+      <div class="prose">
+        <p>An equaliser (EQ) changes the balance of a song by turning parts of the frequency range up or down. Each slider is a band centred on one frequency, and it also nudges the frequencies either side of it. A 10-band EQ like Earprint’s has one slider per octave, from 32 Hz to 16 kHz.</p>
+        <p>Changes are measured in decibels (dB). Positive numbers boost, negative numbers cut, and 0 dB leaves that band alone.</p>
+        <p>Cutting is often cleaner than boosting. If vocals sound buried, try lowering the bass a little before you raise the mids.</p>
+      </div>
+      <dl class="facts">
+        <div><dt>+3 dB</dt><dd>A small but clear lift.</dd></div>
+        <div><dt>+6 dB</dt><dd>A big change. Most good settings stay within this.</dd></div>
+        <div><dt>±12 dB</dt><dd>Earprint’s limit. Changes this large usually cause more problems than they fix.</dd></div>
+        <div><dt>Preamp</dt><dd>Boosting can push music past the maximum level and make it distort, which is called <b>clipping</b>. Turning the overall level down by your largest boost leaves room. Earprint’s exports include this.</dd></div>
+        <div><dt>Louder wins</dt><dd>Played back to back, the louder version almost always sounds better, even if nothing else changed. Earprint matches the volume of the settings you compare, so you judge the tone and not the level.</dd></div>
+      </dl>
     </div>
   </section>
 
-  <div class="bottom">
-    <section class="panel" id="fp" aria-labelledby="fpLabel">
-      <h2 class="label" id="fpLabel">Where this track lives</h2>
-      <div id="fpChart"></div>
-      <p class="insight" id="fpText">Analysing the track…</p>
-      <p class="note">Energy in each octave compared with an evenly balanced signal. These are the frequencies your headphones most need to get right for this song.</p>
-    </section>
-    <section class="panel" aria-labelledby="exLabel">
-      <div class="panel-head">
-        <h2 class="label" id="exLabel">Export setting <span id="exSlot">A</span></h2>
-        <button class="btn" type="button" id="copyOut">Copy</button>
-      </div>
-      <div class="tabs" role="group" aria-label="Export format">
-        <button class="tab" type="button" data-fmt="bands" aria-pressed="true">10-band</button>
-        <button class="tab" type="button" data-fmt="spotify" aria-pressed="false">Spotify</button>
-        <button class="tab" type="button" data-fmt="apo" aria-pressed="false">Equalizer APO</button>
-        <button class="tab" type="button" data-fmt="geq" aria-pressed="false">GraphicEQ / Wavelet</button>
-      </div>
-      <pre class="out" id="out"></pre>
-      <p class="note" id="outNote"></p>
-    </section>
-  </div>
-</div>
+  <section class="sec" aria-labelledby="whyTitle">
+    <div class="sec-head">
+      <p class="label">Three things shape what you hear</p>
+      <h2 id="whyTitle">Why there’s no one best setting</h2>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <h3>The recording</h3>
+        <p>Every song has already been balanced by mixing and mastering engineers. A setting that helps one album can spoil another, which is why Earprint lets you test on the exact songs you play.</p>
+      </article>
+      <article class="card">
+        <h3>Your headphones or speakers</h3>
+        <p>Usually the biggest factor. Two pairs of headphones can differ by more than any EQ setting you’d choose, so a setting tuned on one device rarely suits another.</p>
+      </article>
+      <article class="card">
+        <h3>Your ears and your volume</h3>
+        <p>Hearing varies between people and changes with age. Volume matters too: at low levels we hear less bass and treble, so a setting that sounds balanced when loud can sound thin when quiet.</p>
+      </article>
+    </div>
+  </section>
 
-<script>
-(() => {
-'use strict';
+  <section class="sec" aria-labelledby="devTitle">
+    <div class="sec-head">
+      <p class="label">Output devices</p>
+      <h2 id="devTitle">Your headphones and speakers change everything</h2>
+      <p>Earprint doesn’t know your device yet, so any setting you find is part taste and part correction for whatever you listened on. Save a separate setting for each device you use.</p>
+    </div>
+    <div class="cards two">
+      <article class="card">
+        <h3>Earbuds</h3>
+        <p>The seal in your ear decides how much bass you get. Try a different tip size before boosting the bass: a poor fit can lose more low end than any EQ can restore.</p>
+      </article>
+      <article class="card">
+        <h3>Over-ear and on-ear headphones</h3>
+        <p>Every model has its own tonal signature. Open-back designs usually have less deep bass than closed ones, and many headphones have a bright peak somewhere in the treble.</p>
+      </article>
+      <article class="card">
+        <h3>Bluetooth headphones with an app</h3>
+        <p>Many wireless headphones apply their own EQ through a companion app. Stacking that on top of another EQ doubles the effect, so set one of them to flat first.</p>
+      </article>
+      <article class="card">
+        <h3>Speakers and cars</h3>
+        <p>The room or cabin shapes the sound as much as the speakers do. Bass builds up near walls and corners, so a setting made on headphones often sounds bloated on speakers.</p>
+      </article>
+    </div>
+    <p class="note-line">Planned for a later version: starting from a correction for your exact headphone model, using published measurements.</p>
+  </section>
 
-const BANDS = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-const BAND_LABELS = ['31', '63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
-const BAND_NAMES = ['deep sub-bass', 'sub-bass', 'bass', 'upper bass', 'low mids', 'mids', 'upper mids', 'presence', 'brilliance', 'air'];
-const Q = 1.41, RANGE = 12;
-const PRESETS = {
-  'Flat': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  'Warm': [3, 3, 2, 1, 0, 0, -1, -1, -2, -2],
-  'Bass boost': [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
-  'Vocal clarity': [-2, -2, -1, 0, 1, 3, 4, 3, 1, 0],
-  'Bright': [0, 0, 0, 0, 0, 0, 1, 3, 4, 5],
-  'V-shape': [5, 4, 2, 0, -2, -2, 0, 2, 4, 5]
-};
-const SPOTIFY_F = [60, 150, 400, 1000, 2400, 15000];
-const GEQ_F = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
-const N_CURVE = 256;
-const CURVE_F = new Float32Array(N_CURVE).map((_, i) => 20 * Math.pow(1000, i / (N_CURVE - 1)));
-const N_VIS = 160;
-const VIS_F = new Float32Array(N_VIS).map((_, i) => 20 * Math.pow(1000, i / (N_VIS - 1)));
-const SPEC_MIN = -105, SPEC_MAX = -18, CURVE_DB = 15;
+  <section class="sec" aria-labelledby="eraTitle">
+    <div class="sec-head">
+      <p class="label">Eras and remasters</p>
+      <h2 id="eraTitle">Artists change over time</h2>
+      <p>An artist’s sound isn’t fixed. Producers, studios and fashions change, and so does the artist. Studies of large collections of commercial recordings have found the overall tonal balance of popular music shifting from decade to decade.</p>
+    </div>
+    <ul class="points">
+      <li><b>Records got louder</b><span>Mastering got much louder through the 1990s and 2000s, with heavier compression. Older records can sound quieter and softer next to newer ones, even at the same EQ setting.</span></li>
+      <li><b>Remasters sound different</b><span>Reissues are often louder and balanced differently from the original release, so the version you stream may not be the one you grew up with.</span></li>
+      <li><b>Your favourite era matters</b><span>Earprint starts with an artist’s most-played songs, which lean towards their best-known period. If you love an earlier album, search for songs from it and test with those.</span></li>
+      <li><b>Test more than one song</b><span>Songs by the same artist can suit different settings. Try two or three you play most before you settle on one.</span></li>
+    </ul>
+  </section>
 
-const $ = (id) => document.getElementById(id);
-const store = {
-  get(k, d) { try { const v = localStorage.getItem('earprint:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('earprint:' + k, JSON.stringify(v)); } catch (e) {} }
-};
-const validGains = (g) => Array.isArray(g) && g.length === 10 && g.every((v) => typeof v === 'number' && isFinite(v) && Math.abs(v) <= RANGE);
-const savedSlots = store.get('slots', null);
-const state = {
-  slots: (savedSlots && savedSlots.A && savedSlots.B && validGains(savedSlots.A.gains) && validGains(savedSlots.B.gains))
-    ? savedSlots
-    : { A: { name: 'Flat', gains: PRESETS['Flat'].slice() }, B: { name: 'Warm', gains: PRESETS['Warm'].slice() } },
-  active: 'A',
-  match: store.get('match', true) !== false,
-  layers: Object.assign({ spectrum: true, average: true, curve: true }, store.get('layers', {})),
-  five: (store.get('five', []) || []).filter((a) => a && a.id && a.name).slice(0, 5),
-  track: null,
-  demo: null,
-  playing: false,
-  offset: 0,
-  startedAt: 0,
-  blind: null,
-  fmt: 'bands',
-  currentArtist: null,
-  loadToken: 0,
-  deezer: null
-};
+  <section class="sec" aria-labelledby="howTitle">
+    <div class="sec-head">
+      <p class="label">Using the lab</p>
+      <h2 id="howTitle">From song to setting in four steps</h2>
+    </div>
+    <ol class="steps">
+      <li><h3>Pick a song</h3><p>Search for an artist, song or genre, or drop in your own audio file. Add up to five artists you listen to most.</p></li>
+      <li><h3>See where it lives</h3><p>The frequency scope shows the song’s sound live, and a chart shows which octaves carry the most energy.</p></li>
+      <li><h3>Shape and compare</h3><p>Move the ten faders, loop the part of the song you care about, and switch between settings A and B. Run a blind test to choose without bias.</p></li>
+      <li><h3>Copy it to your app</h3><p>Export for Apple Music on a Mac, Spotify, Equalizer APO on Windows or Wavelet on Android.</p></li>
+    </ol>
+  </section>
 
-/* ---------- Audio graph ---------- */
-const AC = window.AudioContext || window.webkitAudioContext;
-const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-let ctx = null, source = null, filters = [], comp = null, limiter = null, analyser = null, master = null;
+  <section class="sec" aria-labelledby="limTitle">
+    <div class="sec-head">
+      <p class="label">Read before you trust the numbers</p>
+      <h2 id="limTitle">What Earprint can’t do yet</h2>
+    </div>
+    <ul class="limits">
+      <li><b>It hears previews, not whole songs.</b><span>Songs come from Deezer as 30-second, 128 kbps MP3 clips. They cover one part of each song and lose detail above roughly 16 kHz.</span></li>
+      <li><b>It doesn’t know your headphones.</b><span>The settings you find mix your taste with fixes for your device.</span></li>
+      <li><b>Your browser isn’t your music app.</b><span>Every EQ app shapes its bands slightly differently, so exported settings are close approximations. Spotify’s sliders don’t show numbers, so you set them by eye.</span></li>
+      <li><b>Volume matching is an estimate.</b><span>It’s based on each song’s average balance, so very uneven songs can still sound slightly louder on one setting.</span></li>
+      <li><b>Some songs have no preview.</b><span>And some artists appear more than once on Deezer. Earprint shows fan counts so you can pick the main profile.</span></li>
+      <li><b>It isn’t a hearing test.</b><span>If you notice changes in your hearing, see an audiologist or your GP.</span></li>
+      <li><b>Keep the volume sensible.</b><span>Boosting with an EQ makes it easy to listen louder than you realise.</span></li>
+    </ul>
+  </section>
 
-function ensureCtx() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return ctx; }
-  ctx = new AC();
-  const g = gainsOf(state.active);
-  filters = BANDS.map((f, i) => { const b = ctx.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = Q; b.gain.value = g[i]; return b; });
-  for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
-  comp = ctx.createGain(); comp.gain.value = compFor(state.active);
-  limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.003; limiter.release.value = 0.15;
-  analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = 0.78;
-  master = ctx.createGain(); master.gain.value = +$('vol').value;
-  filters[filters.length - 1].connect(comp); comp.connect(limiter); limiter.connect(analyser); analyser.connect(master); master.connect(ctx.destination);
-  specBuf = new Float32Array(analyser.frequencyBinCount);
-  return ctx;
-}
-function rampTo(param, v) {
-  const t = ctx.currentTime;
-  if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(t); else { param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); }
-  param.setTargetAtTime(v, t, 0.012);
-}
-function applyLive() {
-  if (!ctx) return;
-  const g = gainsOf(state.active);
-  filters.forEach((f, i) => rampTo(f.gain, g[i]));
-  rampTo(comp.gain, compFor(state.active));
-}
+  <section class="final" aria-labelledby="finalTitle">
+    <h2 id="finalTitle">Hear the difference on your own music.</h2>
+    <p>Put on the headphones you use most, pick a song you know well, and start with the demo settings.</p>
+    <a class="btn solid big" href="/lab/">Open the EQ lab</a>
+  </section>
+</main>
 
-/* Response maths uses its own filters so the live graph is never disturbed */
-const calcCtx = new OAC(1, 128, 44100);
-const calcFilters = BANDS.map((f) => { const b = calcCtx.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = Q; return b; });
-function responseDb(gains, freqs) {
-  const fq = freqs instanceof Float32Array ? freqs : Float32Array.from(freqs);
-  const mag = new Float32Array(fq.length).fill(1), m = new Float32Array(fq.length), ph = new Float32Array(fq.length);
-  calcFilters.forEach((b, i) => { b.gain.value = gains[i]; b.getFrequencyResponse(fq, m, ph); for (let k = 0; k < fq.length; k++) mag[k] *= m[k]; });
-  return Array.from(mag, (v) => 20 * Math.log10(Math.max(v, 1e-6)));
-}
-const gainsOf = (s) => state.slots[s].gains;
-const curveCache = {};
-function curveOf(s) {
-  const key = gainsOf(s).join(',');
-  if (curveCache[s] && curveCache[s].key === key) return curveCache[s].db;
-  const db = responseDb(gainsOf(s), CURVE_F);
-  curveCache[s] = { key, db };
-  return db;
-}
-
-/* Loudness matching: estimate how much each EQ changes perceived level for this track, then undo it */
-function kWeight(f) {
-  const hp = Math.pow(f, 4) / (Math.pow(f, 4) + Math.pow(38, 4));
-  const shelf = 1 + 1.512 * (f * f) / (f * f + 1700 * 1700);
-  return hp * shelf;
-}
-function trackWeights() {
-  const fp = state.track && state.track.fp;
-  return Array.from(CURVE_F, (f, i) => (fp ? fp.density[i] * f : 1) * kWeight(f));
-}
-function compFor(s) {
-  if (!state.match) return 1;
-  const w = trackWeights(), db = curveOf(s);
-  let num = 0, den = 0;
-  for (let i = 0; i < N_CURVE; i++) { num += w[i]; den += w[i] * Math.pow(10, db[i] / 10); }
-  const c = Math.sqrt(num / den);
-  return isFinite(c) ? Math.min(4, Math.max(0.25, c)) : 1;
-}
-
-/* ---------- Playback ---------- */
-function position() {
-  if (!state.track) return 0;
-  const d = state.track.buffer.duration;
-  if (!state.playing || !ctx) return ((state.offset % d) + d) % d;
-  return ((ctx.currentTime - state.startedAt) % d + d) % d;
-}
-function stopSource() { if (source) { try { source.stop(); } catch (e) {} source.disconnect(); source = null; } }
-function play() {
-  if (!state.track) return;
-  ensureCtx();
-  stopSource();
-  source = ctx.createBufferSource();
-  source.buffer = state.track.buffer; source.loop = true;
-  source.connect(filters[0]);
-  const off = position();
-  source.start(0, off);
-  state.startedAt = ctx.currentTime - off;
-  state.playing = true;
-  renderPlay();
-  cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
-}
-function pause() {
-  if (!state.playing) return;
-  state.offset = position();
-  stopSource();
-  state.playing = false;
-  renderPlay();
-  scheduleDraw();
-}
-function togglePlay() { state.playing ? pause() : play(); }
-function seek(t) {
-  state.offset = t;
-  if (state.playing) { stopSource(); state.playing = false; play(); }
-  else { renderTime(); scheduleDraw(); }
-}
-
-function setTrack(t, autoplay) {
-  const wasPlaying = state.playing;
-  stopSource(); state.playing = false;
-  state.track = t; state.offset = 0;
-  peaks = null; lastVis = null;
-  applyLive(); renderLevel();
-  renderNow(); renderTime(); renderFingerprint(); renderExport();
-  renderPlay();
-  scheduleDraw();
-  if (autoplay || wasPlaying) play();
-}
-
-/* ---------- Decoding and analysis ---------- */
-function decode(ab) {
-  const oc = new OAC(2, 44100, 44100);
-  return new Promise((res, rej) => { const p = oc.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
-}
-async function analyse(buffer) {
-  const sr = buffer.sampleRate, len = buffer.length, dur = len / sr;
-  const oc = new OAC(1, len, sr);
-  const src = oc.createBufferSource(); src.buffer = buffer;
-  const an = oc.createAnalyser(); an.fftSize = 8192; an.smoothingTimeConstant = 0;
-  src.connect(an); an.connect(oc.destination); src.start();
-  const bins = an.frequencyBinCount, acc = new Float64Array(bins), tmp = new Float32Array(bins);
-  let n = 0;
-  const steps = Math.max(1, Math.min(90, Math.floor(dur / 0.25)));
-  const quantum = 128 / sr; const used = new Set();
-  for (let i = 1; i <= steps; i++) {
-    const t = Math.floor((i * dur / (steps + 1)) / quantum) * quantum;
-    const key = t.toFixed(6);
-    if (t <= 0 || t >= dur || used.has(key)) continue;
-    used.add(key);
-    oc.suspend(t).then(() => {
-      an.getFloatFrequencyData(tmp);
-      for (let k = 0; k < bins; k++) { const v = tmp[k]; if (isFinite(v)) acc[k] += Math.pow(10, v / 10); }
-      n++; oc.resume();
-    });
-  }
-  await oc.startRendering();
-  if (!n) return null;
-  const binHz = sr / an.fftSize;
-  for (let k = 0; k < bins; k++) acc[k] /= n;
-  const density = new Float64Array(N_CURVE), avgDb = new Float32Array(N_CURVE);
-  CURVE_F.forEach((f, i) => { const p = meanPower(acc, f, 1 / 24, binHz); density[i] = p; avgDb[i] = 10 * Math.log10(Math.max(p, 1e-14)); });
-  const bandsDb = BANDS.map((fc) => {
-    let s = 0; const lo = fc / Math.SQRT2, hi = fc * Math.SQRT2;
-    for (let k = Math.max(1, Math.floor(lo / binHz)); k <= Math.min(bins - 1, Math.ceil(hi / binHz)); k++) { const f = k * binHz; if (f >= lo && f < hi) s += acc[k]; }
-    return 10 * Math.log10(Math.max(s, 1e-14));
-  });
-  const ref = bandsDb.slice(1, 9).reduce((a, b) => a + b, 0) / 8;
-  return { density, avgDb, rel: bandsDb.map((v) => v - ref) };
-}
-function meanPower(powerArr, f, halfOct, binHz) {
-  const lo = f * Math.pow(2, -halfOct), hi = f * Math.pow(2, halfOct);
-  const k0 = Math.max(1, Math.ceil(lo / binHz)), k1 = Math.min(powerArr.length - 1, Math.floor(hi / binHz));
-  if (k1 >= k0) { let s = 0; for (let k = k0; k <= k1; k++) s += powerArr[k]; return s / (k1 - k0 + 1); }
-  const x = f / binHz, ka = Math.max(1, Math.floor(x)), kb = Math.min(powerArr.length - 1, ka + 1), fr = x - ka;
-  return powerArr[ka] * (1 - fr) + powerArr[kb] * fr;
-}
-
-/* ---------- Demo loop, synthesised offline ---------- */
-async function makeDemo() {
-  const sr = 44100, bpm = 104, beat = 60 / bpm, bars = 4, dur = bars * 4 * beat;
-  const oc = new OAC(2, Math.ceil(dur * sr), sr);
-  const out = oc.createGain(); out.gain.value = 0.8; out.connect(oc.destination);
-  const nb = oc.createBuffer(1, sr, sr); const nd = nb.getChannelData(0);
-  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-  const env = (g, t, peak, a, d) => { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); };
-  const kick = (t) => {
-    const o = oc.createOscillator(), g = oc.createGain();
-    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
-    env(g, t, 1, 0.003, 0.45); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.5);
-  };
-  const noise = (t, type, freq, q, level, decay) => {
-    const s = oc.createBufferSource(); s.buffer = nb;
-    const f = oc.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
-    const g = oc.createGain(); env(g, t, level, 0.002, decay);
-    s.connect(f); f.connect(g); g.connect(out); s.start(t, Math.random() * 0.5); s.stop(t + decay + 0.03);
-  };
-  const snare = (t) => {
-    noise(t, 'bandpass', 1900, 0.8, 0.6, 0.2);
-    const o = oc.createOscillator(), g = oc.createGain(); o.type = 'triangle'; o.frequency.value = 196;
-    env(g, t, 0.35, 0.002, 0.12); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.16);
-  };
-  const hat = (t, open) => noise(t, 'highpass', 7600, 0.7, open ? 0.16 : 0.1, open ? 0.24 : 0.045);
-  const chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
-  const roots = [33, 29, 36, 31];
-  for (let bar = 0; bar < bars; bar++) {
-    const t0 = bar * 4 * beat;
-    for (let b = 0; b < 4; b++) {
-      const t = t0 + b * beat;
-      if (b === 0 || b === 2) kick(t);
-      if (b === 1 || b === 3) snare(t);
-      hat(t, false); hat(t + beat / 2, b === 3);
-    }
-    if (bar % 2 === 1) kick(t0 + 2.5 * beat);
-    for (let e = 0; e < 8; e++) {
-      const t = t0 + e * beat / 2, m = roots[bar] + (e % 4 === 3 ? 12 : 0);
-      const o = oc.createOscillator(), f = oc.createBiquadFilter(), g = oc.createGain();
-      o.type = 'sawtooth'; o.frequency.value = mtof(m);
-      f.type = 'lowpass'; f.Q.value = 3; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(200, t + beat / 2);
-      env(g, t, 0.3, 0.008, beat / 2 * 0.9);
-      o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + beat / 2 + 0.02);
-    }
-    chords[bar].forEach((m) => [-7, 7].forEach((det) => {
-      const o = oc.createOscillator(), f = oc.createBiquadFilter(), g = oc.createGain();
-      o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = det;
-      f.type = 'lowpass'; f.frequency.value = 1900;
-      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.03, t0 + 0.3);
-      g.gain.setValueAtTime(0.03, t0 + 4 * beat - 0.12); g.gain.linearRampToValueAtTime(0.0001, t0 + 4 * beat);
-      o.connect(f); f.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 4 * beat);
-    }));
-    for (let s = 0; s < 16; s++) {
-      const t = t0 + s * beat / 4, m = chords[bar][s % 3] + 12 + (s % 8 === 7 ? 12 : 0);
-      const o = oc.createOscillator(), f = oc.createBiquadFilter(), g = oc.createGain();
-      o.type = 'square'; o.frequency.value = mtof(m);
-      f.type = 'lowpass'; f.frequency.value = 4500;
-      env(g, t, 0.045, 0.004, 0.15);
-      o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + 0.18);
-    }
-  }
-  const buf = await oc.startRendering();
-  let peak = 0;
-  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; } }
-  const k = peak > 0 ? 0.89 / peak : 1;
-  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] *= k; }
-  return buf;
-}
-
-/* ---------- Deezer (JSONP, because its API sends no CORS headers) ---------- */
-function deezer(path) {
-  return new Promise((resolve, reject) => {
-    const cb = '__dz' + Math.random().toString(36).slice(2);
-    const s = document.createElement('script');
-    let done = false;
-    const finish = (err, data) => {
-      if (done) return; done = true; clearTimeout(timer);
-      try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-      s.remove();
-      err ? reject(err) : resolve(data);
-    };
-    const timer = setTimeout(() => finish(new Error('timeout')), 9000);
-    window[cb] = (data) => (data && data.error) ? finish(new Error(data.error.message || 'Deezer error')) : finish(null, data);
-    s.onerror = () => finish(new Error('blocked'));
-    s.src = 'https://api.deezer.com' + path + (path.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cb;
-    document.head.appendChild(s);
-  });
-}
-function deezerBlocked() {
-  state.deezer = false;
-  $('hostNote').hidden = false;
-  $('q').disabled = true; $('searchForm').querySelector('button').disabled = true;
-  setStatus('');
-}
-async function probeDeezer() {
-  try {
-    const r = await deezer('/chart/0/artists?limit=8');
-    state.deezer = true;
-    renderArtists(r.data || [], 'Popular on Deezer');
-  } catch (e) { deezerBlocked(); }
-}
-async function search(q) {
-  setStatus('Searching…');
-  try {
-    const r = await deezer('/search/artist?q=' + encodeURIComponent(q) + '&limit=8');
-    const list = r.data || [];
-    renderArtists(list, list.length ? 'Artists matching “' + q + '”' : '');
-    setStatus(list.length ? '' : 'No artists found for “' + q + '”. Check the spelling or try another name.');
-  } catch (e) {
-    if (state.deezer === null || e.message === 'blocked') deezerBlocked();
-    else setStatus('Search didn’t respond. Check your connection and try again.');
-  }
-}
-async function openArtist(a) {
-  state.currentArtist = { id: a.id, name: a.name, picture: a.picture_small || a.picture || '' };
-  $('topBox').hidden = false;
-  $('topLabel').textContent = 'Top tracks · ' + a.name;
-  $('topTracks').innerHTML = '';
-  renderAddFive();
-  setStatus('Loading ' + a.name + '…');
-  try {
-    const r = await deezer('/artist/' + a.id + '/top?limit=10');
-    renderTracks(r.data || []);
-    setStatus((r.data || []).length ? '' : 'No tracks found for ' + a.name + '.');
-  } catch (e) { setStatus('Couldn’t load tracks for ' + a.name + '. Try again.'); }
-}
-async function loadDeezerTrack(t, row) {
-  ensureCtx();
-  const token = ++state.loadToken;
-  markCurrent(row);
-  setStatus('Loading “' + t.title_short + '”…');
-  try {
-    const fresh = await deezer('/track/' + t.id);
-    if (!fresh.preview) throw new Error('No preview available for this track.');
-    const res = await fetch(fresh.preview, { mode: 'cors' });
-    if (!res.ok) throw new Error('The preview server returned ' + res.status + '.');
-    const buffer = await decode(await res.arrayBuffer());
-    const fp = await analyse(buffer).catch(() => null);
-    if (token !== state.loadToken) return;
-    setTrack({
-      buffer, fp, source: 'deezer',
-      title: fresh.title_short || fresh.title, artist: fresh.artist ? fresh.artist.name : '',
-      art: fresh.album ? fresh.album.cover_medium : '', link: fresh.link
-    }, true);
-    setStatus('');
-  } catch (e) {
-    if (token !== state.loadToken) return;
-    setStatus('Couldn’t play this preview. ' + (e.message || '') + ' Try another track.');
-  }
-}
-async function loadFile(file) {
-  const token = ++state.loadToken;
-  markCurrent(null);
-  setStatus('Reading ' + file.name + '…');
-  try {
-    const buffer = await decode(await file.arrayBuffer());
-    const fp = await analyse(buffer).catch(() => null);
-    if (token !== state.loadToken) return;
-    setTrack({ buffer, fp, source: 'file', title: file.name.replace(/\.[^.]+$/, ''), artist: 'Your file', art: '', link: '' }, true);
-    setStatus('');
-  } catch (e) {
-    setStatus('That file couldn’t be decoded. Try an MP3, M4A, WAV or OGG file.');
-  }
-}
-
-/* ---------- Rendering: source rail ---------- */
-function setStatus(msg) { $('status').textContent = msg; }
-function img(src, cls) {
-  if (!src) { const s = document.createElement('span'); s.className = 'ph ' + (cls || ''); s.setAttribute('aria-hidden', 'true'); return s; }
-  const i = document.createElement('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; return i;
-}
-function renderArtists(list, label) {
-  $('artistsBox').hidden = !list.length;
-  $('artistsLabel').textContent = label;
-  const box = $('artists'); box.innerHTML = '';
-  list.forEach((a) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'achip';
-    b.append(img(a.picture_small || a.picture));
-    const s = document.createElement('span'); s.textContent = a.name; b.append(s);
-    b.addEventListener('click', () => openArtist(a));
-    box.append(b);
-  });
-}
-const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-function renderTracks(list) {
-  const box = $('topTracks'); box.innerHTML = '';
-  list.forEach((t) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'trow';
-    b.append(img(t.album && t.album.cover_small));
-    const tx = document.createElement('span'); tx.className = 't';
-    const bb = document.createElement('b'); bb.textContent = t.title_short || t.title;
-    const sm = document.createElement('small'); sm.textContent = t.album ? t.album.title : '';
-    tx.append(bb, sm);
-    const d = document.createElement('span'); d.className = 'd'; d.textContent = t.preview ? fmtTime(t.duration) : 'No preview';
-    b.append(tx, d);
-    if (!t.preview) b.disabled = true;
-    b.addEventListener('click', () => loadDeezerTrack(t, b));
-    box.append(b);
-  });
-}
-function markCurrent(row) {
-  document.querySelectorAll('.trow[aria-current]').forEach((r) => r.removeAttribute('aria-current'));
-  if (row) row.setAttribute('aria-current', 'true');
-}
-function renderFive() {
-  const box = $('five'); box.innerHTML = '';
-  $('fiveCount').textContent = state.five.length + ' of 5';
-  if (!state.five.length) {
-    const p = document.createElement('span'); p.className = 'empty';
-    p.textContent = state.deezer === false ? 'Available once artist search works.' : 'Open an artist and add them here.';
-    box.append(p);
-  }
-  state.five.forEach((a, i) => {
-    const c = document.createElement('span'); c.className = 'fchip';
-    const open = document.createElement('button'); open.type = 'button'; open.textContent = a.name;
-    open.addEventListener('click', () => openArtist({ id: a.id, name: a.name, picture_small: a.picture }));
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove ' + a.name);
-    x.addEventListener('click', () => { state.five.splice(i, 1); store.set('five', state.five); renderFive(); renderAddFive(); });
-    c.append(open, x); box.append(c);
-  });
-}
-function renderAddFive() {
-  const btn = $('addFive'), a = state.currentArtist;
-  if (!a) return;
-  const has = state.five.some((f) => f.id === a.id);
-  btn.textContent = has ? 'In my five' : 'Add to my five';
-  btn.disabled = has || state.five.length >= 5;
-}
-
-/* ---------- Rendering: transport ---------- */
-function renderNow() {
-  const t = state.track; if (!t) return;
-  $('nowTitle').textContent = t.title;
-  const sub = $('nowSub'); sub.textContent = '';
-  if (t.source === 'deezer' && t.link) {
-    sub.append(document.createTextNode(t.artist + ' · '));
-    const a = document.createElement('a'); a.href = t.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Preview on Deezer';
-    sub.append(a);
-  } else sub.textContent = t.artist;
-  const old = $('nowArt'); const n = img(t.art, t.source === 'demo' ? 'demo' : ''); n.id = 'nowArt'; old.replaceWith(n);
-  $('demoRow').toggleAttribute('aria-current', t.source === 'demo');
-  if (t.source === 'demo') $('demoRow').setAttribute('aria-current', 'true');
-}
-function renderPlay() {
-  const p = state.playing;
-  $('play').setAttribute('aria-label', p ? 'Pause' : 'Play');
-  $('playIcon').innerHTML = p ? '<path d="M6 4.5h4.2v15H6zM13.8 4.5H18v15h-4.2z"/>' : '<path d="M7 4.5v15l13-7.5z"/>';
-}
-function renderTime() {
-  const t = state.track; if (!t) return;
-  const d = t.buffer.duration, p = position();
-  $('tCur').textContent = fmtTime(p); $('tDur').textContent = fmtTime(d);
-  const s = $('seek'); s.max = d.toFixed(2); if (!seeking) s.value = p.toFixed(2);
-}
-
-/* ---------- Rendering: EQ ---------- */
-const faderEls = [];
-function buildFaders() {
-  const box = $('faders');
-  BANDS.forEach((f, i) => {
-    const col = document.createElement('div'); col.className = 'fcol';
-    const read = document.createElement('output'); read.className = 'fread';
-    const fd = document.createElement('div'); fd.className = 'fader'; fd.tabIndex = 0;
-    fd.setAttribute('role', 'slider'); fd.setAttribute('aria-label', BAND_LABELS[i] + ' hertz');
-    fd.setAttribute('aria-valuemin', -RANGE); fd.setAttribute('aria-valuemax', RANGE); fd.setAttribute('aria-orientation', 'vertical');
-    fd.innerHTML = '<div class="ftrack"><div class="fzero"></div><div class="ffill"></div><div class="fthumb"></div></div>';
-    const lab = document.createElement('div'); lab.className = 'flab'; lab.textContent = BAND_LABELS[i];
-    col.append(read, fd, lab); box.append(col);
-    const track = fd.querySelector('.ftrack');
-    const fromY = (y) => { const r = track.getBoundingClientRect(); const v = -RANGE + (r.bottom - y) / r.height * 2 * RANGE; return Math.round(v * 2) / 2; };
-    let dragging = false;
-    fd.addEventListener('pointerdown', (e) => { if (state.blind) return; dragging = true; fd.setPointerCapture(e.pointerId); fd.focus(); setGain(i, fromY(e.clientY)); e.preventDefault(); });
-    fd.addEventListener('pointermove', (e) => { if (dragging) setGain(i, fromY(e.clientY)); });
-    const end = () => { dragging = false; };
-    fd.addEventListener('pointerup', end); fd.addEventListener('pointercancel', end);
-    fd.addEventListener('dblclick', () => { if (!state.blind) setGain(i, 0); });
-    fd.addEventListener('keydown', (e) => {
-      if (state.blind) return;
-      const v = gainsOf(state.active)[i];
-      const map = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5, PageUp: 3, PageDown: -3 };
-      if (e.key in map) { setGain(i, v + map[e.key]); e.preventDefault(); }
-      else if (e.key === 'Home') { setGain(i, RANGE); e.preventDefault(); }
-      else if (e.key === 'End') { setGain(i, -RANGE); e.preventDefault(); }
-      else if (e.key === '0') { setGain(i, 0); e.preventDefault(); }
-    });
-    faderEls.push({ read, fd, fill: fd.querySelector('.ffill'), thumb: fd.querySelector('.fthumb') });
-  });
-}
-const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
-function renderFaders() {
-  const g = gainsOf(state.active);
-  $('faders').classList.toggle('slot-B', state.active === 'B');
-  faderEls.forEach((el, i) => {
-    const v = g[i], pos = (v + RANGE) / (2 * RANGE) * 100;
-    el.thumb.style.bottom = pos + '%';
-    if (v >= 0) { el.fill.style.bottom = '50%'; el.fill.style.height = (pos - 50) + '%'; }
-    else { el.fill.style.bottom = pos + '%'; el.fill.style.height = (50 - pos) + '%'; }
-    el.read.textContent = sgn(v);
-    el.fd.setAttribute('aria-valuenow', v); el.fd.setAttribute('aria-valuetext', sgn(v) + ' dB');
-  });
-}
-function presetName(g) { for (const [n, p] of Object.entries(PRESETS)) if (p.every((v, i) => v === g[i])) return n; return 'Custom'; }
-function setGain(i, v) {
-  v = Math.max(-RANGE, Math.min(RANGE, Math.round(v * 2) / 2));
-  const slot = state.slots[state.active];
-  if (slot.gains[i] === v) return;
-  slot.gains[i] = v; slot.name = presetName(slot.gains);
-  afterSlotChange();
-}
-function afterSlotChange() {
-  store.set('slots', state.slots);
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
-}
-function renderSlots() {
-  const blind = state.blind;
-  document.querySelectorAll('.slot').forEach((b, idx) => {
-    const s = blind ? blind.order[idx] : b.dataset.slot;
-    b.setAttribute('aria-pressed', String(s === state.active));
-    b.querySelector('.k').textContent = blind ? String(idx + 1) : b.dataset.slot;
-    b.querySelector('.n').textContent = blind ? 'Hidden' : state.slots[b.dataset.slot].name;
-  });
-  $('abBox').classList.toggle('blindmode', !!blind);
-  const other = state.active === 'A' ? 'B' : 'A';
-  $('copySlot').textContent = 'Copy ' + state.active + ' to ' + other;
-  $('resetSlot').textContent = 'Reset ' + state.active;
-  $('exSlot').textContent = state.active;
-  ['copySlot', 'resetSlot', 'preset', 'match'].forEach((id) => { $(id).disabled = !!blind; });
-  $('lgCurveSw').style.background = state.active === 'A' ? 'var(--a)' : 'var(--b)';
-}
-function renderLevel() {
-  if (!state.match) { $('level').textContent = 'Volume follows the EQ, so boosts sound louder.'; return; }
-  if (state.blind) { $('level').textContent = 'Both settings play at matched loudness.'; return; }
-  const db = 20 * Math.log10(compFor(state.active));
-  $('level').textContent = 'Level correction on ' + state.active + ': ' + sgn(db) + ' dB';
-}
-function selectSlot(s) {
-  if (state.active === s) return;
-  state.active = s;
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
-}
-function swap() { selectSlot(state.active === 'A' ? 'B' : 'A'); }
-
-/* Blind test */
-function startBlind() {
-  state.blind = { order: Math.random() < 0.5 ? ['A', 'B'] : ['B', 'A'], prevMatch: state.match };
-  state.match = true; $('match').checked = true;
-  $('blindStart').hidden = true; $('blindPick').hidden = false; $('blindResult').hidden = true;
-  $('blindIntro').textContent = 'Switch between 1 and 2 as often as you like. Both play at the same loudness.';
-  $('mask').hidden = false; $('faders').setAttribute('aria-hidden', 'true');
-  state.active = state.blind.order[0];
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); scheduleDraw();
-  if (!state.playing) play();
-}
-function endBlind(pickIdx) {
-  const b = state.blind; if (!b) return;
-  state.blind = null;
-  state.match = b.prevMatch; $('match').checked = state.match;
-  $('blindStart').hidden = false; $('blindPick').hidden = true; $('mask').hidden = true; $('faders').removeAttribute('aria-hidden');
-  $('blindIntro').textContent = 'Blind test: hide which setting is which, listen to both, then pick one.';
-  if (pickIdx != null) {
-    const win = b.order[pickIdx], lose = b.order[1 - pickIdx];
-    const r = $('blindResult'); r.hidden = false;
-    r.textContent = 'You picked ' + (pickIdx + 1) + ', which was setting ' + win + ' (' + state.slots[win].name + '). Number ' + (2 - pickIdx) + ' was ' + lose + ' (' + state.slots[lose].name + ').';
-    state.active = win;
-  }
-  applyLive(); renderFaders(); renderSlots(); renderLevel(); renderExport(); scheduleDraw();
-}
-
-/* ---------- Fingerprint ---------- */
-function renderFingerprint() {
-  const box = $('fpChart'), fp = state.track && state.track.fp;
-  if (!fp) { box.innerHTML = ''; $('fpText').textContent = state.track ? 'This track couldn’t be analysed in this browser.' : 'Analysing the track…'; return; }
-  const W = 400, H = 190, top = 20, bottom = 34, mid = top + (H - top - bottom) / 2, half = (H - top - bottom) / 2, scale = 15;
-  const order = fp.rel.map((v, i) => [v, i]).filter(([, i]) => i < 9).sort((a, b) => b[0] - a[0]);
-  const hot = new Set([order[0][1], order[1][1]]);
-  const cw = W / 10;
-  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Energy per octave for this track">';
-  fp.rel.forEach((v, i) => {
-    const c = Math.max(-scale, Math.min(scale, v)), h = Math.abs(c) / scale * half, x = i * cw + cw * 0.22, w = cw * 0.56;
-    const y = c >= 0 ? mid - h : mid;
-    s += '<rect class="fp-bar' + (hot.has(i) ? ' hot' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + Math.max(1, h).toFixed(1) + '" rx="2"/>';
-    const vy = c >= 0 ? y - 4 : y + h + 11;
-    s += '<text class="fp-val" x="' + (i * cw + cw / 2).toFixed(1) + '" y="' + vy.toFixed(1) + '" text-anchor="middle">' + sgn(v, 0) + '</text>';
-    s += '<text class="fp-lab" x="' + (i * cw + cw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + BAND_LABELS[i] + '</text>';
-  });
-  s += '<line class="fp-zero" x1="0" x2="' + W + '" y1="' + mid + '" y2="' + mid + '"/></svg>';
-  box.innerHTML = s;
-  const [a, b] = [order[0][1], order[1][1]].sort((x, y) => x - y);
-  const low = b <= 3, high = a >= 6;
-  $('fpText').textContent = 'Most of the energy sits in the ' + BAND_NAMES[a] + ' (' + BAND_LABELS[a] + ' Hz) and ' + BAND_NAMES[b] + ' (' + BAND_LABELS[b] + ' Hz). ' +
-    (low ? 'Earbuds and small headphones often roll off down here, so this song loses the most on them.' :
-      high ? 'Headphones with a harsh or recessed treble will change this song the most.' :
-        'Headphones with an uneven midrange will change this song the most.');
-}
-
-/* ---------- Export ---------- */
-const ascii = (v, d = 1) => (v > 0 ? '+' : '') + v.toFixed(d);
-const hz = (f) => (f >= 1000 ? (f / 1000) + ' kHz' : f + ' Hz');
-function renderExport() {
-  const g = gainsOf(state.active);
-  let text = '', note = '';
-  if (state.fmt === 'bands') {
-    text = BANDS.map((f, i) => hz(f).padEnd(9) + ascii(g[i]) + ' dB').join('\n');
-    note = 'Enter these into any 10-band graphic equaliser.';
-  } else if (state.fmt === 'spotify') {
-    const r = responseDb(g, SPOTIFY_F);
-    text = SPOTIFY_F.map((f, i) => hz(f).padEnd(9) + ascii(Math.max(-12, Math.min(12, Math.round(r[i] * 2) / 2))) + ' dB').join('\n');
-    note = 'Spotify’s equaliser has six bands at these frequencies. Its sliders shape sound slightly differently, so treat these as a starting point.';
-  } else if (state.fmt === 'apo') {
-    const peak = Math.max(0, ...responseDb(g, CURVE_F));
-    text = 'Preamp: ' + (-Math.ceil(peak * 10) / 10).toFixed(1) + ' dB\n' + BANDS.map((f, i) => 'Filter ' + (i + 1) + ': ON PK Fc ' + f + ' Hz Gain ' + g[i].toFixed(1) + ' dB Q ' + Q.toFixed(2)).join('\n');
-    note = 'Paste into Equalizer APO’s config.txt on Windows. The preamp stops boosts from clipping.';
-  } else {
-    const r = responseDb(g, GEQ_F), peak = Math.max(0, ...r);
-    text = 'GraphicEQ: ' + GEQ_F.map((f, i) => f + ' ' + (r[i] - peak).toFixed(1)).join('; ');
-    note = 'For Wavelet’s import, Equalizer APO or Peace. Includes ' + peak.toFixed(1) + ' dB of headroom so boosts don’t clip.';
-  }
-  $('out').textContent = text; $('outNote').textContent = note;
-}
-
-/* ---------- Scope ---------- */
-const canvas = $('scope'), g2 = canvas.getContext('2d');
-let raf = 0, drawQueued = false, specBuf = null, peaks = null, lastVis = null, colors = {}, seeking = false;
-const visRangesCache = {};
-function readColors() {
-  const cs = getComputedStyle(document.documentElement);
-  ['--a', '--b', '--spec', '--muted', '--line', '--ink', '--well'].forEach((k) => { colors[k] = cs.getPropertyValue(k).trim(); });
-  scheduleDraw();
-}
-function rgba(hex, a) {
-  const h = (hex || '#888888').replace('#', '');
-  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
-  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
-}
-function sizeCanvas() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2), r = canvas.getBoundingClientRect();
-  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
-  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-  scheduleDraw();
-}
-function scheduleDraw() {
-  if (state.playing || drawQueued) return;
-  drawQueued = true;
-  requestAnimationFrame(() => { drawQueued = false; draw(false); });
-}
-function tick() {
-  draw(true); renderTime();
-  if (state.playing) raf = requestAnimationFrame(tick);
-}
-function liveVis() {
-  analyser.getFloatFrequencyData(specBuf);
-  const binHz = ctx.sampleRate / analyser.fftSize;
-  const pow = visRangesCache.pow || (visRangesCache.pow = new Float64Array(specBuf.length));
-  for (let k = 0; k < specBuf.length; k++) pow[k] = isFinite(specBuf[k]) ? Math.pow(10, specBuf[k] / 10) : 0;
-  const out = new Float32Array(N_VIS);
-  for (let i = 0; i < N_VIS; i++) out[i] = 10 * Math.log10(Math.max(meanPower(pow, VIS_F[i], 1 / 14, binHz), 1e-14));
-  return out;
-}
-function draw(live) {
-  const W = canvas.width, H = canvas.height; if (W < 2) return;
-  const dpr = W / Math.max(1, canvas.getBoundingClientRect().width);
-  const padB = 20 * dpr, padT = 10 * dpr, plotH = H - padB - padT, padR = 44 * dpr, plotW = W - padR;
-  const X = (f) => Math.log(f / 20) / Math.log(1000) * plotW;
-  const YS = (db) => padT + plotH - (Math.max(SPEC_MIN, Math.min(SPEC_MAX, db)) - SPEC_MIN) / (SPEC_MAX - SPEC_MIN) * plotH;
-  const YC = (db) => padT + plotH / 2 - Math.max(-CURVE_DB, Math.min(CURVE_DB, db)) / CURVE_DB * (plotH / 2 - 6 * dpr);
-  g2.clearRect(0, 0, W, H);
-
-  // grid
-  g2.lineWidth = 1; g2.font = (10.5 * dpr) + 'px "JetBrains Mono", ui-monospace, monospace'; g2.textBaseline = 'alphabetic';
-  [50, 100, 200, 500, 1000, 2000, 5000, 10000].forEach((f) => {
-    const x = Math.round(X(f)) + 0.5;
-    g2.strokeStyle = rgba(colors['--muted'], 0.16); g2.beginPath(); g2.moveTo(x, padT); g2.lineTo(x, padT + plotH); g2.stroke();
-    g2.fillStyle = colors['--muted']; g2.textAlign = 'center';
-    g2.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), x, H - 6 * dpr);
-  });
-  g2.textAlign = 'left'; g2.fillStyle = colors['--muted'];
-  g2.fillText('Hz', 4 * dpr, H - 6 * dpr);
-  [12, 6, 0, -6, -12].forEach((db) => {
-    const y = Math.round(YC(db)) + 0.5;
-    g2.strokeStyle = rgba(colors['--muted'], db === 0 ? 0.42 : 0.14);
-    g2.setLineDash(db === 0 ? [] : [3 * dpr, 4 * dpr]);
-    g2.beginPath(); g2.moveTo(0, y); g2.lineTo(plotW, y); g2.stroke();
-    g2.setLineDash([]);
-    g2.fillText((db > 0 ? '+' : db < 0 ? '−' : ' ') + Math.abs(db) + ' dB', plotW + 6 * dpr, y + 3.5 * dpr);
-  });
-
-  // live spectrum
-  if (state.layers.spectrum) {
-    let vis = null;
-    if (live && analyser) {
-      vis = liveVis(); lastVis = vis;
-      if (!peaks) peaks = Float32Array.from(vis);
-      for (let i = 0; i < N_VIS; i++) peaks[i] = Math.max(vis[i], peaks[i] - 0.5);
-    } else vis = lastVis;
-    if (vis) {
-      const grad = g2.createLinearGradient(0, padT, 0, padT + plotH);
-      grad.addColorStop(0, rgba(colors['--spec'], live ? 0.55 : 0.25));
-      grad.addColorStop(1, rgba(colors['--spec'], 0.04));
-      g2.beginPath(); g2.moveTo(0, padT + plotH);
-      for (let i = 0; i < N_VIS; i++) g2.lineTo(X(VIS_F[i]), YS(vis[i]));
-      g2.lineTo(plotW, padT + plotH); g2.closePath(); g2.fillStyle = grad; g2.fill();
-      g2.beginPath();
-      for (let i = 0; i < N_VIS; i++) { const x = X(VIS_F[i]), y = YS(vis[i]); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }
-      g2.strokeStyle = rgba(colors['--spec'], live ? 0.85 : 0.4); g2.lineWidth = 1.25 * dpr; g2.stroke();
-      if (peaks && live) {
-        g2.beginPath();
-        for (let i = 0; i < N_VIS; i++) { const x = X(VIS_F[i]), y = YS(peaks[i]); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }
-        g2.strokeStyle = rgba(colors['--spec'], 0.3); g2.lineWidth = 1 * dpr; g2.stroke();
-      }
-    }
-  }
-
-  // track average
-  const fp = state.track && state.track.fp;
-  if (state.layers.average && fp) {
-    g2.beginPath();
-    for (let i = 0; i < N_CURVE; i++) { const x = X(CURVE_F[i]), y = YS(fp.avgDb[i]); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }
-    g2.setLineDash([4 * dpr, 3 * dpr]); g2.strokeStyle = rgba(colors['--muted'], 0.95); g2.lineWidth = 1.4 * dpr; g2.stroke(); g2.setLineDash([]);
-  }
-
-  // EQ curves
-  if (state.layers.curve && !state.blind) {
-    const other = state.active === 'A' ? 'B' : 'A';
-    [[other, false], [state.active, true]].forEach(([s, on]) => {
-      const db = curveOf(s), col = colors[s === 'A' ? '--a' : '--b'];
-      g2.beginPath();
-      for (let i = 0; i < N_CURVE; i++) { const x = X(CURVE_F[i]), y = YC(db[i]); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }
-      g2.setLineDash(on ? [] : [6 * dpr, 4 * dpr]);
-      g2.strokeStyle = on ? col : rgba(col, 0.55); g2.lineWidth = (on ? 2.6 : 1.6) * dpr; g2.stroke(); g2.setLineDash([]);
-      if (on) {
-        BANDS.forEach((f, i) => {
-          const x = X(f), y = YC(gainsOf(s)[i]);
-          g2.beginPath(); g2.arc(x, y, 3 * dpr, 0, Math.PI * 2); g2.fillStyle = col; g2.fill();
-        });
-      }
-      g2.font = '600 ' + (11 * dpr) + 'px "Instrument Sans", system-ui, sans-serif'; g2.textAlign = 'left';
-      g2.fillStyle = on ? col : rgba(col, 0.7);
-      g2.fillText(s, (on ? 6 : 20) * dpr, YC(db[0]) - 6 * dpr);
-    });
-  }
-  if (!state.track) {
-    g2.fillStyle = colors['--muted']; g2.textAlign = 'center'; g2.font = (13 * dpr) + 'px "Instrument Sans", system-ui, sans-serif';
-    g2.fillText('Preparing the demo loop…', plotW / 2, padT + plotH / 2);
-  }
-}
-
-/* ---------- Wiring ---------- */
-function init() {
-  buildFaders();
-  const sel = $('preset');
-  sel.innerHTML = '<option value="">Load a preset…</option>' + Object.keys(PRESETS).map((n) => '<option>' + n + '</option>').join('');
-  sel.addEventListener('change', () => {
-    const n = sel.value; if (!n) return;
-    state.slots[state.active] = { name: n, gains: PRESETS[n].slice() };
-    sel.value = ''; afterSlotChange();
-  });
-  $('match').checked = state.match;
-  $('match').addEventListener('change', (e) => { state.match = e.target.checked; store.set('match', state.match); applyLive(); renderLevel(); });
-  document.querySelectorAll('.slot').forEach((b, idx) => b.addEventListener('click', () => {
-    ensureCtx();
-    selectSlot(state.blind ? state.blind.order[idx] : b.dataset.slot);
-  }));
-  $('swap').addEventListener('click', () => { ensureCtx(); swap(); });
-  $('copySlot').addEventListener('click', () => {
-    const other = state.active === 'A' ? 'B' : 'A';
-    state.slots[other] = { name: state.slots[state.active].name, gains: gainsOf(state.active).slice() };
-    afterSlotChange();
-  });
-  $('resetSlot').addEventListener('click', () => { state.slots[state.active] = { name: 'Flat', gains: PRESETS['Flat'].slice() }; afterSlotChange(); });
-  $('blindStart').addEventListener('click', () => { ensureCtx(); startBlind(); });
-  $('blindCancel').addEventListener('click', () => endBlind(null));
-  document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => endBlind(+b.dataset.pick)));
-
-  $('play').addEventListener('click', () => { ensureCtx(); togglePlay(); });
-  const seekEl = $('seek');
-  seekEl.addEventListener('input', () => { seeking = true; $('tCur').textContent = fmtTime(+seekEl.value); });
-  seekEl.addEventListener('change', () => { seeking = false; seek(+seekEl.value); });
-  $('vol').addEventListener('input', (e) => { if (master) master.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.02); });
-
-  [['lgSpectrum', 'spectrum'], ['lgAverage', 'average'], ['lgCurve', 'curve']].forEach(([id, k]) => {
-    $(id).checked = state.layers[k];
-    $(id).addEventListener('change', (e) => { state.layers[k] = e.target.checked; store.set('layers', state.layers); scheduleDraw(); if (state.playing) draw(true); });
-  });
-  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-    state.fmt = t.dataset.fmt;
-    document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
-    renderExport();
-  }));
-  $('copyOut').addEventListener('click', () => {
-    const text = $('out').textContent, btn = $('copyOut');
-    const done = (ok) => { btn.textContent = ok ? 'Copied' : 'Text selected'; setTimeout(() => { btn.textContent = 'Copy'; }, 1600); };
-    const fallback = () => { const r = document.createRange(); r.selectNodeContents($('out')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); done(false); };
-    try { navigator.clipboard.writeText(text).then(() => done(true), fallback); } catch (e) { fallback(); }
-  });
-
-  $('searchForm').addEventListener('submit', (e) => { e.preventDefault(); const q = $('q').value.trim(); if (q) search(q); });
-  $('addFive').addEventListener('click', () => {
-    const a = state.currentArtist; if (!a || state.five.length >= 5 || state.five.some((f) => f.id === a.id)) return;
-    state.five.push(a); store.set('five', state.five); renderFive(); renderAddFive();
-  });
-  $('demoRow').addEventListener('click', () => { ensureCtx(); state.loadToken++; markCurrent(null); if (state.demo) setTrack(state.demo, true); setStatus(''); });
-  $('fileBtn').addEventListener('click', () => { ensureCtx(); $('file').click(); });
-  $('file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadFile(f); e.target.value = ''; });
-
-  document.addEventListener('keydown', (e) => {
-    const t = e.target, tag = (t.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'x' || e.key === 'X') { ensureCtx(); if (state.blind) { const idx = state.blind.order.indexOf(state.active); selectSlot(state.blind.order[1 - idx]); } else swap(); }
-    else if (e.key === ' ' && (t === document.body || t.classList.contains('fader'))) { e.preventDefault(); ensureCtx(); togglePlay(); }
-  });
-
-  new ResizeObserver(sizeCanvas).observe(canvas);
-  readColors();
-  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
-  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleDraw);
-
-  renderFaders(); renderSlots(); renderLevel(); renderExport(); renderFive();
-  sizeCanvas();
-
-  makeDemo().then(async (buffer) => {
-    const fp = await analyse(buffer).catch(() => null);
-    state.demo = { buffer, fp, source: 'demo', title: 'Demo loop', artist: 'Synthesised in your browser · loops every ' + buffer.duration.toFixed(1) + ' s', art: '', link: '' };
-    $('demoDur').textContent = fmtTime(buffer.duration);
-    if (!state.track) setTrack(state.demo, false);
-  }).catch(() => { $('nowSub').textContent = 'The demo loop couldn’t be built in this browser.'; });
-
-  probeDeezer().then(renderFive);
-}
-init();
-})();
-</script>
-
+<footer class="site-foot"><div class="wrap">
+  <p>Earprint is an early prototype. Song previews and artist data from Deezer.</p>
+  <p><a href="/lab/">EQ lab</a></p>
+</div></footer>
 </body>
 </html>
