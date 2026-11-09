@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EQ lab · Earprint</title>
+<meta name="description" content="Play real song previews, shape them with a 10-band equaliser, watch the frequency scope and blind-test two settings at matched volume.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Michroma&display=swap">
+<link rel="stylesheet" href="/assets/earprint.css">
+<link rel="stylesheet" href="/assets/lab.css">
+<script type="module" src="/assets/lab.js"></script>
+</head>
+<body>
+<header class="site-head"><div class="wrap">
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="bar-a" x="2" y="10" width="3" height="11" rx="1.5"/><rect class="bar-a" x="7" y="5" width="3" height="16" rx="1.5"/><rect class="bar-n" x="12" y="9" width="3" height="12" rx="1.5"/><rect class="bar-b" x="17" y="3" width="3" height="18" rx="1.5"/></svg>EARPRINT</a>
+  <nav class="site-nav" aria-label="Main"><a href="/">How it works</a><a href="/lab/" aria-current="page">EQ lab</a></nav>
+</div></header>
+
+<main class="wrap lab">
+  <div class="lab-intro">
+    <h1>EQ lab</h1>
+    <span class="tag">Prototype</span>
+    <p>Pick a song, shape it with ten faders, and compare two settings at matched volume. New to EQ? <a href="/">Read how it works</a>.</p>
+  </div>
+
+  <div class="top">
+    <section class="panel src" aria-labelledby="srcLabel">
+      <h2 class="label" id="srcLabel">Pick a song</h2>
+      <form class="search" id="searchForm" role="search" autocomplete="off">
+        <input id="q" type="search" placeholder="Artist, song or genre" aria-label="Search for an artist, song or genre" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest" autocomplete="off" spellcheck="false" enterkeyhint="search">
+        <button class="btn solid" type="submit" id="searchBtn">Search</button>
+        <div class="suggest" id="suggest" role="listbox" aria-label="Suggestions" hidden></div>
+      </form>
+      <p class="notice" id="hostNote" hidden>Song search can’t reach Deezer from this page. It works on earprint.xyz. The demo loop and your own audio files still work here.</p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+
+      <div class="sub">
+        <div class="sub-head"><h3 class="label">Your artists</h3><span class="count" id="pickCount">Pick up to 5</span></div>
+        <div class="chips" id="picks"></div>
+      </div>
+
+      <div class="sub" id="viewBox" hidden>
+        <div class="sub-head"><h3 class="label" id="viewLabel">Popular on Deezer</h3><button class="btn small" type="button" id="viewAction" hidden></button></div>
+        <p class="view-meta" id="viewMeta" hidden></p>
+        <div class="chips" id="viewArtists"></div>
+        <div class="chips" id="viewGenres"></div>
+        <div class="tracks scroll" id="viewTracks"></div>
+      </div>
+
+      <details class="genres" id="genreBox">
+        <summary>Browse by genre</summary>
+        <div class="chips" id="genreChips"></div>
+      </details>
+
+      <div class="divider">or use other audio</div>
+      <div class="tracks">
+        <button class="trow" type="button" id="demoRow"><span class="ph demo" aria-hidden="true"></span><span class="t"><b>Demo loop</b><small>Drums, bass, pads and a pluck, made in your browser</small></span><span class="d" id="demoDur"></span></button>
+      </div>
+      <button class="btn" type="button" id="fileBtn">Choose an audio file</button>
+      <p class="hint">You can also drop an audio file anywhere on this page. It stays on your device.</p>
+      <input type="file" id="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus" hidden>
+      <p class="credit">Song previews and artist data from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>. 30-second clips only.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="scopeLabel">
+      <div class="panel-head">
+        <h2 class="label" id="scopeLabel">Frequency scope</h2>
+        <div class="legend" role="group" aria-label="Scope layers">
+          <label class="lg"><input type="checkbox" id="lgSpectrum" checked><i></i>Live sound</label>
+          <label class="lg"><input type="checkbox" id="lgAverage" checked><i class="av"></i>Song average</label>
+          <label class="lg"><input type="checkbox" id="lgCurve" checked><i class="cv" id="lgCurveSw"></i>EQ curve</label>
+        </div>
+      </div>
+      <div class="well"><canvas id="scope" role="img" aria-label="Frequency scope showing the live sound, the song's average and the EQ curves for settings A and B"></canvas></div>
+      <div class="wave" id="wave" tabindex="0" role="slider" aria-label="Playback position" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00"><canvas aria-hidden="true"></canvas></div>
+      <div class="loopbar">
+        <p class="loopinfo" id="loopInfo">Drag across the waveform to loop a section. Click to jump.</p>
+        <div class="loopbtns">
+          <button class="btn small" type="button" id="loopStart">Start loop here</button>
+          <button class="btn small" type="button" id="loopEnd">End loop here</button>
+          <button class="btn small" type="button" id="loopClear" disabled>Clear loop</button>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="playbtn" type="button" id="play" aria-label="Play"><svg viewBox="0 0 24 24" id="playIcon" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+        <div class="now"><span class="ph demo" id="nowArt" aria-hidden="true"></span><div class="t"><b id="nowTitle">Demo loop</b><small id="nowSub">Preparing…</small></div></div>
+        <span class="time" id="time">0:00 / 0:00</span>
+        <label class="vol" for="vol">Vol <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8"></label>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="eqLabel">
+    <div class="panel-head">
+      <h2 class="label" id="eqLabel">Equaliser</h2>
+      <span class="note">Drag a fader, use the arrow keys, or double-click to reset it. <kbd>X</kbd> switches A and B, <kbd>Space</kbd> plays.</span>
+    </div>
+    <div class="eq">
+      <div class="ab" id="abBox">
+        <div class="slots" role="group" aria-label="Settings to compare">
+          <button class="slot" type="button" data-slot="A" aria-pressed="true"><span class="k">A</span><span class="n">Flat</span></button>
+          <button class="slot" type="button" data-slot="B" aria-pressed="false"><span class="k">B</span><span class="n">Warm</span></button>
+        </div>
+        <button class="btn solid" type="button" id="swap">Switch A and B</button>
+        <label class="switch edit-only" for="match">Match loudness <input type="checkbox" id="match" role="switch"></label>
+        <p class="level" id="level"></p>
+        <div class="row edit-only">
+          <select class="btn" id="preset" aria-label="Load a preset into the selected setting"></select>
+        </div>
+        <div class="row edit-only">
+          <button class="btn" type="button" id="copySlot">Copy A to B</button>
+          <button class="btn" type="button" id="resetSlot">Reset A</button>
+        </div>
+        <div class="blind">
+          <p id="blindIntro">Blind test: hide which setting is which, listen to both, then pick one.</p>
+          <button class="btn" type="button" id="blindStart">Start blind test</button>
+          <div class="row" id="blindPick" hidden>
+            <button class="btn solid" type="button" data-pick="0">I prefer 1</button>
+            <button class="btn solid" type="button" data-pick="1">I prefer 2</button>
+            <button class="btn" type="button" id="blindCancel">Cancel</button>
+          </div>
+          <p class="result" id="blindResult" hidden></p>
+        </div>
+      </div>
+      <div class="bank">
+        <div class="faders" id="faders"></div>
+        <div class="scale" aria-hidden="true"><span>Hz</span><span>Range ±12 dB</span></div>
+        <div class="mask" id="mask" hidden><p><b>Settings hidden for the blind test.</b><br>Switch between 1 and 2 and listen.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="bottom">
+    <section class="panel" id="fp" aria-labelledby="fpLabel">
+      <h2 class="label" id="fpLabel">Where this song lives</h2>
+      <div id="fpChart"></div>
+      <p class="insight" id="fpText">Analysing the song…</p>
+      <p class="note">Energy in each octave compared with an evenly balanced signal. These are the frequencies your headphones most need to get right for this song.</p>
+    </section>
+    <section class="panel" aria-labelledby="exLabel">
+      <div class="panel-head">
+        <h2 class="label" id="exLabel">Export setting <span id="exSlot">A</span></h2>
+        <div class="ex-actions edit-only">
+          <button class="btn small" type="button" id="copyOut">Copy</button>
+          <button class="btn small" type="button" id="dlOut" hidden>Download file</button>
+        </div>
+      </div>
+      <div class="tabs edit-only" role="group" aria-label="Export format" id="exTabs"></div>
+      <div id="exBody" class="edit-only">
+        <div id="exVisual" hidden></div>
+        <pre class="out" id="out"></pre>
+        <p class="note" id="outNote"></p>
+      </div>
+      <p class="note" id="exHidden" hidden>Hidden during the blind test so the numbers don’t give the settings away.</p>
+    </section>
+  </div>
+</main>
+
+<div class="mini" id="mini" role="region" aria-label="Player">
+  <button class="playbtn" type="button" id="miniPlay" aria-label="Play"><svg viewBox="0 0 24 24" id="miniIcon" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+  <button class="mini-t" type="button" id="miniJump" aria-label="Show the scope and player"><b id="miniTitle">Demo loop</b><small id="miniSub"></small></button>
+  <button class="btn small mini-ab" type="button" id="miniSwap"><span id="miniSlot">Hearing A</span> · Switch</button>
+</div>
+
+<div class="dropzone" id="drop" hidden><div><b>Drop to load this audio file</b><span>It stays on your device.</span></div></div>
+
+<footer class="site-foot"><div class="wrap">
+  <p>Earprint is an early prototype. Song previews and artist data from Deezer.</p>
+  <p><a href="/">How it works</a></p>
+</div></footer>
+</body>
+</html>
