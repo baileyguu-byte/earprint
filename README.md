@@ -1,18 +1,24 @@
 # Earprint
 
-Shape your EQ on the songs you actually play. Earprint plays 30-second song previews from Deezer, shows how each song's balance compares with a typical song, lets you shape it with a 10-band equaliser right on the frequency scope, and compares two settings blind at matched volume. It can also measure up to five of your artists and fit one setting to what they share. Settings export to Apple Music on a Mac, Spotify, Equalizer APO and Wavelet.
+Shape your EQ on the songs you actually play. Earprint plays 30-second song previews from Deezer, shows how each song's balance compares with a typical song of its genre, and lets you shape it right on the frequency scope with an equaliser laid out like yours. It can start from a correction for your exact headphones (AutoEq, 6,000+ models) and a gentle treble lift for your age (ISO 7029), compares two settings blind at matched volume, and can measure up to five of your artists and fit one setting to what they share. Settings export to Apple Music on a Mac, Samsung Galaxy, Spotify, Android's equaliser, cars and speakers, Equalizer APO and Wavelet.
 
 ## Site layout
 
 | Path | What it is |
 | --- | --- |
-| `public/index.html` | Front page: what EQ does, the EQ cheat sheet, devices, artists over time, reading the scope, limitations |
+| `public/index.html` | Front page: what EQ does, the EQ cheat sheet, headphones, hearing and age, band layouts, artists over time, reading the scope, limitations |
 | `public/lab/index.html` | The EQ lab |
 | `public/about/index.html` | Conditions of use for Deezer previews, privacy, credits, and a button to clear saved data |
 | `public/assets/earprint.css` | Shared colours, fonts, header, footer and the Deezer credit |
-| `public/assets/lab.js` | Lab app: search, playback, loop, scope with draggable dots, faders, soft limit, auto fit, quick fixes, blind test, your artists |
+| `public/assets/lab.js` | Lab app: your setup (equaliser, headphones, hearing), search, playback, loop, scope with draggable dots, faders, soft limit, auto fit, quick fixes, blind test, your artists |
+| `public/assets/autoeq.js` | Headphone list search and corrections (loads `public/assets/autoeq/`) |
+| `public/assets/hearing.js` | ISO 7029 hearing by age, and the age compensation |
+| `public/assets/curves.js` | Small frequency charts with tooltips (headphone correction, hearing) |
+| `public/assets/home.js` | Front page hearing chart and table |
 | `public/assets/dsp.js` | EQ bands, filter maths, song analysis, the typical-song reference and the auto fit |
 | `public/assets/charts.js` | The two comparison charts (this song, your artists) |
+| `public/assets/autoeq/` | AutoEq data: `index.json` (models), `eq-NN.json` (filters, 250 models each) and AutoEq's MIT licence |
+| `tools/autoeq_build.py` | Rebuilds `public/assets/autoeq/` from a checkout of the AutoEq repository |
 | `public/assets/cheats.js` | What each band does and the quick fixes |
 | `public/assets/deezer.js` | Deezer search and suggestions (JSONP, no key needed) |
 | `public/assets/exports.js` | Export formats for each app |
@@ -35,7 +41,9 @@ Deployed on Cloudflare from this repository.
 - Song previews, artist and genre data: Deezer's public API, called from the visitor's browser.
 - The typical song (`TYPICAL` in `dsp.js`): 128 previews, 8 from each of 16 Deezer charts, measured with the lab's own analysis in November 2026. Only the medians and quartiles are kept.
 - Typical songs per genre (`GENRE_TYPICAL` in `dsp.js`): the top 12 previews on each of 17 Deezer genre charts, measured the same way in November 2026. The lab finds a song's genre from its album on Deezer. "Even it out" and the song chart use the genre by default; "Bring out its character" always compares with all music, so a genre's own traits count as character.
-- Export formats were checked against each app's documentation (Equalizer APO configuration reference, Wavelet's import format).
+- Headphone corrections: [AutoEq](https://github.com/jaakkopasanen/AutoEq) (MIT licence, copy in `public/assets/autoeq/LICENSE.txt`), its recommended result per model (`results/README.md`, one measurement per model from the most accurate source) at commit 7ae0f56 (July 2025). Each is a ten-filter parametric EQ towards the Harman over-ear target, AutoEq's in-ear target or a rig-specific version. Served from this site, so the lab never contacts AutoEq or GitHub. To update: shallow-clone AutoEq (a blob-less partial clone with a sparse checkout of `results/**/*ParametricEQ.txt` and `results/README.md` is enough), then run `python3 -I tools/autoeq_build.py <autoeq checkout> public/assets/autoeq <commit> <date>`.
+- Hearing and age: ISO 7029:2017 Formula (1) and Table 1 (median threshold change from age 18, by sex, 125 Hz–8 kHz, ages 18–80). The lab's compensation gives back a third (Gentle) or half (Stronger) of the change above the 500 Hz–1 kHz level, eased above 8 kHz and capped at +6 dB, played as four high shelves and a 16 kHz dip.
+- Export formats were checked against each app's documentation (Equalizer APO configuration reference, Wavelet's import format). With your setup on, fixed-band exports are fitted to setting + correction + age lift; Equalizer APO gets the exact filters and Wavelet the exact curve; the car and speaker export leaves out the headphone correction.
 - Cheat-sheet ranges follow common mixing practice; iZotope's EQ cheat sheet is linked as further reading. The wording and graphics are Earprint's own.
 
 ## Deezer compliance checklist

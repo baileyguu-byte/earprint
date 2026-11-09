@@ -170,3 +170,16 @@
 .lay-mid { position: absolute; top: 6px; bottom: 6px; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--ink), transparent); opacity: .35; }
 .lay-f { font: 400 12px var(--mono); color: var(--muted); }
 .laychart .ir-track { background-image: none; }
+
+/* Hearing and age */
+.agefig { margin: 0; display: grid; gap: 10px; max-width: 900px; }
+.agefig figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+.tableview summary { cursor: pointer; font-size: 13.5px; font-weight: 500; width: max-content; }
+.tablewrap { overflow-x: auto; margin-top: 8px; }
+.agetable { border-collapse: collapse; font: 400 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+.agetable caption { text-align: left; font: 400 13px var(--body); color: var(--muted); padding-bottom: 6px; }
+.agetable th, .agetable td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.agetable thead th { color: var(--muted); font-weight: 400; }
+.agetable tbody th { text-align: left; font-weight: 500; }
+.hp-how { align-items: start; }
+.sec > p { margin: 0; }

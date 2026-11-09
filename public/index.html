@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Earprint · EQ shaped to the music you play</title>
-<meta name="description" content="Play real song previews, see where each song's sound sits, shape it with a 10-band equaliser and compare settings blind at matched volume. Then copy the result into your music app.">
+<meta name="description" content="Play real song previews, see where each song's sound sits, correct for your exact headphones and your age, shape it on an equaliser like yours and compare settings blind at matched volume. Then copy the result into your music app.">
 <meta property="og:title" content="Earprint · EQ shaped to the music you play">
-<meta property="og:description" content="Shape your EQ on the songs you actually listen to, compare settings blind, and export to Apple Music, Spotify, Equalizer APO or Wavelet.">
+<meta property="og:description" content="Shape your EQ on the songs you actually listen to, starting from a correction for your exact headphones. Compare settings blind and export to Apple Music, Samsung, Spotify, Equalizer APO, Wavelet and more.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/earprint.css">
 <link rel="stylesheet" href="/assets/home.css">
+<script type="module" src="/assets/home.js"></script>
 </head>
 <body>
 <header class="site-head"><div class="wrap">
@@ -23,7 +24,7 @@
   <section class="hero" aria-labelledby="heroTitle">
     <p class="label">EQ for the music you actually play</p>
     <h1 id="heroTitle">Your music has a fingerprint. Shape your EQ to fit it.</h1>
-    <p class="lead">Earprint plays real previews of the artists and songs you choose, shows where each song’s energy sits from deep bass to high treble, and lets you shape it with a 10-band equaliser. Compare two settings blind at the same volume, then copy the one you prefer into your music app.</p>
+    <p class="lead">Earprint plays real previews of the artists and songs you choose, shows where each song’s energy sits from deep bass to high treble, and lets you shape it on an equaliser laid out like yours, starting from a correction for your exact headphones. Compare two settings blind at the same volume, then copy the one you prefer into your music app.</p>
     <div class="cta">
       <a class="btn solid big" href="/lab/">Open the EQ lab</a>
       <a class="btn big" href="#basics">How EQ works</a>
@@ -68,7 +69,7 @@
     </div>
     <div class="cols">
       <div class="prose">
-        <p>An equaliser (EQ) changes the balance of a song by turning parts of the frequency range up or down. Each slider is a band centred on one frequency, and it also nudges the frequencies either side of it. A 10-band EQ like Earprint’s has one slider per octave, from 32 Hz to 16 kHz.</p>
+        <p>An equaliser (EQ) changes the balance of a song by turning parts of the frequency range up or down. Each slider is a band centred on one frequency, and it also nudges the frequencies either side of it. A 10-band EQ has one slider per octave, from 32 Hz to 16 kHz; phones, apps and cars often have fewer.</p>
         <p>Changes are measured in decibels (dB). Positive numbers boost, negative numbers cut, and 0 dB leaves that band alone.</p>
         <p>Cutting is often cleaner than boosting. If vocals sound buried, try lowering the bass a little before you raise the mids.</p>
       </div>
@@ -203,7 +204,7 @@
       </article>
       <article class="card">
         <h3>Your ears and your volume</h3>
-        <p>Hearing varies between people and changes with age. Volume matters too: at low levels we hear less bass and treble, so a setting that sounds balanced when loud can sound thin when quiet.</p>
+        <p>Hearing varies between people and <a href="#hearing">changes with age</a>, from the treble down. Volume matters too: at low levels we hear less bass and treble, so a setting that sounds balanced when loud can sound thin when quiet.</p>
       </article>
     </div>
   </section>
@@ -212,7 +213,7 @@
     <div class="sec-head">
       <p class="label">Output devices</p>
       <h2 id="devTitle">Your headphones and speakers change everything</h2>
-      <p>Earprint doesn’t know your device yet, so any setting you find is part taste and part correction for whatever you listened on. Save a separate setting for each device you use.</p>
+      <p>Two pairs of headphones can differ by more than any EQ setting you’d choose. So in the lab, tell Earprint your model under Your setup: it starts from a correction measured for it, and your own setting sits on top. It covers more than 6,000 headphones and earbuds.</p>
     </div>
     <div class="cards two">
       <article class="card">
@@ -225,14 +226,57 @@
       </article>
       <article class="card">
         <h3>Bluetooth headphones with an app</h3>
-        <p>Many wireless headphones apply their own EQ through a companion app. Stacking that on top of another EQ doubles the effect, so set one of them to flat first.</p>
+        <p>Many wireless headphones apply their own EQ through a companion app. Stacking that on top of another EQ doubles the effect, so set the app to flat when you use Earprint’s correction. Models with noise cancelling are often listed per mode, so pick the one you use.</p>
       </article>
       <article class="card">
         <h3>Speakers and cars</h3>
-        <p>The room or cabin shapes the sound as much as the speakers do. Bass builds up near walls and corners, so a setting made on headphones often sounds bloated on speakers.</p>
+        <p>The room or cabin shapes the sound as much as the speakers do. Bass builds up near walls and corners, so a setting made on headphones often sounds bloated on speakers. Headphone corrections don’t apply here, so the car and speaker export leaves them out.</p>
       </article>
     </div>
-    <p class="note-line">Planned for a later version: starting from a correction for your exact headphone model, using published measurements.</p>
+    <div class="cols hp-how">
+      <ul class="points">
+        <li><b>Where the corrections come from</b><span><a href="https://autoeq.app" target="_blank" rel="noopener">AutoEq</a>, an open-source project, works out ten filters per model from measurements by independent reviewers and labs such as oratory1990, crinacle and RTINGS. Earprint keeps its own copy, so looking up your model doesn’t contact AutoEq or anyone else.</span></li>
+        <li><b>What they aim for</b><span>A target that most listeners preferred in research by Harman: a touch more bass than flat and a smooth treble. Earphones use AutoEq’s in-ear version of it.</span></li>
+      </ul>
+      <ul class="points">
+        <li><b>A starting point</b><span>Each model was measured once, on a test rig. Your pair, your ears and the fit of your earbuds still change the sound, so adjust by ear on top.</span></li>
+        <li><b>Exports include it</b><span>Equalizer APO and Wavelet apply the correction exactly. Phones and apps with fewer bands get the closest match, which keeps the overall balance but not the finest detail.</span></li>
+      </ul>
+    </div>
+    <p><a class="btn" href="/lab/#headphones">Find your headphones in the lab</a></p>
+  </section>
+
+  <section class="sec" id="hearing" aria-labelledby="hearTitle">
+    <div class="sec-head">
+      <p class="label">Hearing and age</p>
+      <h2 id="hearTitle">Your ears change from the top down</h2>
+      <p>Hearing loses the highest sounds first. By 60, typical hearing is about 18 dB less sensitive at 4 kHz and 27 dB at 8 kHz than at 18, but only about 8 dB at 1 kHz. Music doesn’t go quiet, it goes dull: cymbals, breath and the edges of words fade before anything else, so slowly that nobody notices.</p>
+    </div>
+    <figure class="agefig" aria-labelledby="ageCap">
+      <ul class="keylist" id="ageLegend">
+        <li><i class="lk age1"></i><span>Age 30</span></li>
+        <li><i class="lk age2"></i><span>Age 45</span></li>
+        <li><i class="lk age3"></i><span>Age 60</span></li>
+        <li><i class="lk age4"></i><span>Age 75</span></li>
+      </ul>
+      <div class="chart" id="ageChartHome"><p class="note-line">The chart needs JavaScript. The numbers are in the table below.</p></div>
+      <figcaption id="ageCap">Typical change in hearing compared with age 18, from 125 Hz to 8 kHz, for people with no ear disease or unusual noise exposure: the median in ISO 7029:2017, averaged for men and women. Lower means less sensitive. Real people vary a lot either side, and men typically lose more treble than women.</figcaption>
+      <details class="tableview">
+        <summary>Show the numbers</summary>
+        <div class="tablewrap"><table class="agetable" id="ageTable"></table></div>
+      </details>
+    </figure>
+    <div class="cols">
+      <ul class="points">
+        <li><b>Why a lift helps</b><span>A gentle treble lift brings back some of the detail that age takes away, so music sounds closer to how it was mixed. It also explains why a setting you loved years ago may sound flat now.</span></li>
+        <li><b>Why only part of it</b><span>At normal listening levels the ear’s loudness growth makes up for some of a mild loss, and giving back all of it sounds harsh. Hearing aids give back roughly a third to a half. The volume you choose already covers the overall loss, so only the slope needs EQ.</span></li>
+      </ul>
+      <ul class="points">
+        <li><b>What Earprint does</b><span>Enter your age under Your setup in the lab. Gentle gives back a third of the typical loss above 1 kHz and Stronger a half, never more than +6 dB and never a cut. It plays under both settings and goes into your exports.</span></li>
+        <li><b>What it can’t do</b><span>It uses the typical change for your age, not yours, and it isn’t a hearing test. If speech is hard to follow or you notice a change, see an audiologist or your GP. And keep the volume sensible: boosting treble makes it easy to listen louder than you realise.</span></li>
+      </ul>
+    </div>
+    <p><a class="btn" href="/lab/#hearing">Set your age in the lab</a></p>
   </section>
 
   <section class="sec" id="bands" aria-labelledby="bandsTitle">
@@ -301,10 +345,10 @@
       <h2 id="howTitle">From song to setting in four steps</h2>
     </div>
     <ol class="steps">
-      <li><h3>Pick a song</h3><p>Search for an artist, song or genre, or drop in your own audio file. Add up to five artists you listen to most.</p></li>
-      <li><h3>See where it lives</h3><p>The scope draws the song’s balance next to a typical song, so you can see what makes it different, and a chart picks out the unusual octaves.</p></li>
+      <li><h3>Tell it your setup</h3><p>Choose the equaliser you’ll use, your headphones or earbuds from more than 6,000 models, and if you like, your age.</p></li>
+      <li><h3>Pick a song</h3><p>Search for an artist, song or genre, or drop in your own audio file. The scope shows the song’s balance next to a typical song of its genre.</p></li>
       <li><h3>Shape and compare</h3><p>Drag the dots on the scope or the faders under it, or start from auto fit or a quick fix. Switch between settings A and B, or run a blind test.</p></li>
-      <li><h3>Copy it to your app</h3><p>Export for Apple Music on a Mac, Spotify, Equalizer APO on Windows or Wavelet on Android.</p></li>
+      <li><h3>Copy it to your app</h3><p>Export for Apple Music on a Mac, Samsung Galaxy, Spotify, Android, a car or speaker, Equalizer APO on Windows or Wavelet on Android.</p></li>
     </ol>
   </section>
 
@@ -353,7 +397,8 @@
     </div>
     <ul class="limits">
       <li><b>It hears previews, not whole songs.</b><span>Songs come from Deezer as 30-second, 128 kbps MP3 clips. They cover one part of each song and lose detail above roughly 16 kHz.</span></li>
-      <li><b>It doesn’t know your headphones.</b><span>The settings you find mix your taste with fixes for your device.</span></li>
+      <li><b>Headphone corrections are averages.</b><span>Each comes from one pair measured on a test rig. Your pair, your ears and the fit of your earbuds still change the sound. Without a correction, the settings you find mix your taste with fixes for your device.</span></li>
+      <li><b>Age compensation is typical, not personal.</b><span>It follows the median for your age. Your hearing may be better or worse than that.</span></li>
       <li><b>Your browser isn’t your music app.</b><span>Every EQ app shapes its bands slightly differently, so exported settings are close approximations. Spotify’s sliders don’t show numbers, so you set them by eye.</span></li>
       <li><b>Volume matching is an estimate.</b><span>It’s based on each song’s average balance, so very uneven songs can still sound slightly louder on one setting.</span></li>
       <li><b>The typical song is one sample.</b><span>It’s the middle of 128 popular songs from Deezer’s charts in November 2026, or of 12 songs per genre for the genre comparison. Plenty of great music sits outside it, and that’s fine.</span></li>

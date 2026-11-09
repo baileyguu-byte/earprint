@@ -115,6 +115,25 @@ export function responseDb(gains, freqs, L = L10) {
   return Array.from(mag, (v) => 20 * Math.log10(Math.max(v, 1e-6)));
 }
 
+/**
+ * Response in dB of any list of filters: [{ type: 'peaking' | 'lowshelf' | 'highshelf', f, q, gain }].
+ * Used for your setup (headphone correction and age compensation). Shelves have the usual
+ * slope of 1, the same as Q 0.71, which is what AutoEq and Equalizer APO use for shelves.
+ */
+const specNodes = [];
+export function specsResponseDb(specs, freqs) {
+  const fq = freqs instanceof Float32Array ? freqs : Float32Array.from(freqs);
+  const mag = new Float32Array(fq.length).fill(1);
+  const m = new Float32Array(fq.length), ph = new Float32Array(fq.length);
+  specs.forEach((s, i) => {
+    const b = specNodes[i] || (specNodes[i] = calcCtx.createBiquadFilter());
+    b.type = s.type; b.frequency.value = s.f; b.Q.value = s.q || Math.SQRT1_2; b.gain.value = s.gain;
+    b.getFrequencyResponse(fq, m, ph);
+    for (let k = 0; k < fq.length; k++) mag[k] *= m[k];
+  });
+  return Array.from(mag, (v) => 20 * Math.log10(Math.max(v, 1e-6)));
+}
+
 /* ---------- Fitting a layout to a target curve ----------
    Used to move a setting between layouts, to export to devices with other bands, and for auto
    fit. Weighted least squares on a 1/6-octave grid, refined a few times because neighbouring

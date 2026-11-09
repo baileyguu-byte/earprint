@@ -62,9 +62,10 @@
     </div>
     <ul class="plain">
       <li><b>Nothing about you on a server.</b> Earprint has no accounts and no analytics, sets no cookies, and has no database.</li>
-      <li><b>Saved in your browser only:</b> your settings A and B, your picked artists, display choices such as the export format, and the measurements of your artists’ songs (ten numbers per song, never any audio). It’s stored with your browser’s local storage, so it stays on this device until you clear it.</li>
+      <li><b>Saved in your browser only:</b> your settings A and B, your setup (the equaliser layout, your headphone model and, if you enter it, your age), your picked artists, display choices such as the export format, and the measurements of your artists’ songs (ten numbers per song, never any audio). It’s stored with your browser’s local storage, so it stays on this device until you clear it.</li>
       <li><b>Talking to Deezer.</b> When you search or play a preview, your browser contacts Deezer directly, so Deezer receives your request and IP address and its <a href="https://www.deezer.com/legal/personal-datas" target="_blank" rel="noopener">privacy policy</a> applies.</li>
       <li><b>Your own audio files stay put.</b> Files you open or drop into the lab are decoded inside your browser. They’re never uploaded.</li>
+      <li><b>Headphone corrections come from this site.</b> Earprint keeps its own copy of the AutoEq results, so searching for your model doesn’t contact AutoEq, GitHub or any measurement site.</li>
       <li><b>Hosting.</b> The site is served by Cloudflare, which handles basic connection details such as your IP address to deliver the pages. Fonts are served from this site too, not from a third party.</li>
     </ul>
     <div class="stored">
@@ -79,8 +80,10 @@
       <h2 id="credTitle">What Earprint is built from</h2>
     </div>
     <ul class="plain">
-      <li><b>Export formats.</b> Apple Music, Spotify, Equalizer APO and Wavelet are named only to show which apps the exports are made for. Their names belong to their owners, and Earprint isn’t connected to any of them.</li>
+      <li><b>Export formats.</b> Apple Music, Samsung Galaxy, Spotify, Android, Equalizer APO and Wavelet are named only to show which apps and devices the exports are made for. Their names belong to their owners, and Earprint isn’t connected to any of them.</li>
       <li><b>The typical song.</b> Measured by Earprint from 128 previews across 16 Deezer charts in November 2026, plus 12 songs from each of 17 genre charts for genre comparisons. Only the resulting numbers are kept.</li>
+      <li><b>Headphone corrections.</b> From <a href="https://github.com/jaakkopasanen/AutoEq" target="_blank" rel="noopener">AutoEq</a> by Jaakko Pasanen and contributors, used under the MIT licence (<a href="/assets/autoeq/LICENSE.txt">licence text</a>): its recommended parametric EQ for each model, as published in July 2025. The measurements behind them are by independent reviewers and labs including oratory1990, crinacle, RTINGS, Innerfidelity, HypetheSonics and Super Review. For other targets and more options, use <a href="https://autoeq.app" target="_blank" rel="noopener">autoeq.app</a>.</li>
+      <li><b>Hearing and age.</b> The typical change in hearing with age follows ISO 7029:2017, <i>Acoustics — Statistical distribution of hearing thresholds related to age and gender</i> (Formula 1 and Table 1, the median). The compensation built on it is Earprint’s own.</li>
       <li><b>EQ cheat sheet.</b> The instrument ranges follow common mixing practice. For more, read <a href="https://www.izotope.com/community/blog/eq-cheat-sheet" target="_blank" rel="noopener">iZotope’s EQ cheat sheet</a>.</li>
       <li><b>Fonts.</b> Instrument Sans, JetBrains Mono and Michroma, all under the SIL Open Font License (<a href="/assets/fonts/LICENSE-instrument-sans.txt">Instrument Sans</a>, <a href="/assets/fonts/LICENSE-jetbrains-mono.txt">JetBrains Mono</a>, <a href="/assets/fonts/LICENSE-michroma.txt">Michroma</a>).</li>
     </ul>
@@ -90,7 +93,7 @@
     <div class="sec-head">
       <p class="label">Hearing</p>
       <h2 id="safeTitle">Keep the volume sensible</h2>
-      <p>Boosting with an EQ makes it easy to listen louder than you realise, and Earprint isn’t a hearing test. If you notice changes in your hearing, see an audiologist or your GP.</p>
+      <p>Boosting with an EQ makes it easy to listen louder than you realise, and Earprint isn’t a hearing test. Its age compensation uses the typical hearing for an age, not yours. If you notice changes in your hearing, see an audiologist or your GP.</p>
     </div>
   </section>
 </main>
