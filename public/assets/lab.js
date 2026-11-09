@@ -947,7 +947,16 @@ function setHot(i) {
   scheduleDraw();
 }
 function renderBandInfo() {
-  const box = $('bandInfo'), i = state.hot, L = state.layout;
+  const box = $('bandInfo');
+  sizeBandInfo(box);
+  fillBandInfo(box, state.hot, false);
+}
+/**
+ * Write what lives in band i into box (or the hint when no band is pointed at). With sample on,
+ * the numbers are placeholders as wide as any real value, for measuring the longest text.
+ */
+function fillBandInfo(box, i, sample) {
+  const L = state.layout;
   box.textContent = '';
   if (i < 0 || i >= L.count) {
     box.textContent = state.blind ? 'Settings are hidden. Switch between 1 and 2 and listen.' : 'Point at a band, or drag its dot, to see what lives there.';
@@ -959,9 +968,32 @@ function renderBandInfo() {
   if (fp) {
     const k = nearestOctave(b.f);
     const ref = refNow();
-    box.append(' This song: ' + dbText(roundStep(vsTypical(fp.rel, ref)[k], 0.5)) + ' against a typical ' + ref.noun + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
+    box.append(' This song: ' + dbText(sample ? -88.5 : roundStep(vsTypical(fp.rel, ref)[k], 0.5)) + ' against a typical ' + ref.noun + (L.id === 'b10' ? '' : ' around ' + hz(k)) + '.');
   }
-  if (!state.blind) box.append(' Setting ' + state.active + ': ' + dbText(gainsOf(state.active)[i]) + '.');
+  if (!state.blind) box.append(' Setting ' + (sample ? 'W' : state.active) + ': ' + dbText(sample ? -88.5 : gainsOf(state.active)[i]) + '.');
+}
+/**
+ * Keep the band info box as tall as its longest text for this layout and width, so the faders
+ * under it don't jump up and down while you point at or drag different bands.
+ */
+let bandInfoKey = '';
+function sizeBandInfo(box, force) {
+  const w = box.clientWidth, fp = state.track && state.track.fp;
+  const key = [state.layout.id, w, fp ? refNow().noun : '', state.blind ? 1 : 0].join('|');
+  if (!w || (key === bandInfoKey && !force)) return;
+  bandInfoKey = key;
+  const m = box.cloneNode(false);
+  m.removeAttribute('id');
+  m.setAttribute('aria-hidden', 'true');
+  m.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;margin:0;min-height:0;width:' + w + 'px';
+  box.parentNode.append(m);
+  let h = 0;
+  for (let i = -1; i < state.layout.count; i++) {
+    fillBandInfo(m, i, true);
+    h = Math.max(h, m.getBoundingClientRect().height);
+  }
+  m.remove();
+  box.style.minHeight = Math.ceil(h) + 'px';
 }
 
 /* ---------- Settings A and B, presets, auto fit, quick fixes ---------- */
@@ -2005,13 +2037,14 @@ function init() {
       else if (en.target === waveCanvas) { if (fitCanvas(waveCanvas)) { waveBase = null; drawWave(); } }
       else if (en.target === $('fpChart')) { if (state.track && state.track.fp) renderFingerprint(); }
       else if (en.target === $('artChart')) { if (!$('artChart').hidden) renderArtistsPanel(); }
+      else if (en.target === $('bandInfo')) sizeBandInfo($('bandInfo'));
     });
   });
-  [canvas, waveCanvas, $('fpChart'), $('artChart')].forEach((n) => ro.observe(n));
+  [canvas, waveCanvas, $('fpChart'), $('artChart'), $('bandInfo')].forEach((n) => ro.observe(n));
   readColors();
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
   new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => scheduleDraw());
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { sizeBandInfo($('bandInfo'), true); scheduleDraw(); });
 
   readGutter();
   renderFaders(); renderSlots(); renderLevel(); renderExport(); renderPicks(); renderLoop(); renderGenreChips(); renderBandInfo(); renderFitAvailability();
