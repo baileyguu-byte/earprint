@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Feedback: ideas, bugs and comments · Earprint</title>
+<meta name="description" content="Tell the maker of Earprint what you think: suggest an idea, report a bug or leave a comment about the free EQ lab.">
+<link rel="canonical" href="https://earprint.xyz/feedback/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Earprint">
+<meta property="og:url" content="https://earprint.xyz/feedback/">
+<meta property="og:title" content="Feedback: ideas, bugs and comments · Earprint">
+<meta property="og:description" content="Tell the maker of Earprint what you think: suggest an idea, report a bug or leave a comment about the free EQ lab.">
+<meta property="og:image" content="https://earprint.xyz/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Earprint: EQ shaped to the music you play. An EQ curve over a frequency scale from 32 Hz to 16 kHz.">
+<meta property="og:locale" content="en_AU">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/earprint.css">
+<link rel="stylesheet" href="/assets/home.css">
+<link rel="stylesheet" href="/assets/feedback.css">
+<script type="module" src="/assets/feedback.js"></script>
+</head>
+<body>
+<header class="site-head"><div class="wrap">
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="bar-a" x="2" y="10" width="3" height="11" rx="1.5"/><rect class="bar-a" x="7" y="5" width="3" height="16" rx="1.5"/><rect class="bar-n" x="12" y="9" width="3" height="12" rx="1.5"/><rect class="bar-b" x="17" y="3" width="3" height="18" rx="1.5"/></svg>EARPRINT</a>
+  <nav class="site-nav" aria-label="Main"><a href="/">How it works</a><a href="/lab/">EQ lab</a><a href="/about/">About</a><a href="/feedback/" aria-current="page">Feedback</a></nav>
+</div></header>
+
+<main class="wrap"><div class="fb">
+  <div class="fb-head">
+    <p class="label">Feedback</p>
+    <h1>Ideas, bugs and comments</h1>
+    <p class="lead">Earprint is a prototype, and it gets better from what people tell us. Everything you send goes straight to the person who makes it.</p>
+  </div>
+
+  <form class="fb-form" id="fbForm" novalidate>
+    <div class="seg fb-kind" role="radiogroup" aria-label="What kind of feedback">
+      <label><input type="radio" name="kind" value="idea" checked>Idea</label>
+      <label><input type="radio" name="kind" value="bug">Bug</label>
+      <label><input type="radio" name="kind" value="comment">Comment</label>
+    </div>
+
+    <div class="fb-field">
+      <label for="fbMsg" id="fbMsgLabel">What would make Earprint more useful?</label>
+      <textarea id="fbMsg" name="message" rows="7" maxlength="4000" required aria-describedby="fbMsgHint fbCount"></textarea>
+      <div class="fb-under"><span class="note" id="fbMsgHint">A feature, a device or export format you’d like, or something that confused you.</span><span class="note fb-count" id="fbCount">0 / 4,000</span></div>
+    </div>
+
+    <div class="fb-field">
+      <label for="fbContact">How to reach you <span class="opt">(optional)</span></label>
+      <input id="fbContact" name="contact" type="text" maxlength="200" autocomplete="email" placeholder="Email or Reddit username, if you’d like a reply">
+    </div>
+
+    <div class="fb-field fb-tech">
+      <label class="fb-check" for="fbDetails"><input type="checkbox" id="fbDetails"> Include technical details</label>
+      <details class="howto">
+        <summary>What’s included</summary>
+        <pre class="fb-pre" id="fbDetailsPreview"></pre>
+      </details>
+    </div>
+
+    <div class="fb-hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" id="fbWebsite" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="fb-send">
+      <button class="btn solid big" type="submit" id="fbSend">Send feedback</button>
+      <p class="fb-status" id="fbStatus" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+
+  <div class="fb-done" id="fbDone" hidden tabindex="-1">
+    <h2>Thanks, that’s sent.</h2>
+    <p id="fbDoneText">It’s been passed on. If you left a way to reach you, you may get a reply.</p>
+    <div class="row"><button class="btn" type="button" id="fbAgain">Send something else</button><a class="btn solid" href="/lab/">Back to the EQ lab</a></div>
+  </div>
+
+  <section class="fb-privacy" aria-labelledby="fbPrivTitle">
+    <h2 class="label" id="fbPrivTitle">What happens to your message</h2>
+    <ul class="plain">
+      <li>It’s stored in Earprint’s own database on Cloudflare, with the page you came from and, if you add them, your contact details and the technical details shown above. Your IP address isn’t stored.</li>
+      <li>Only the person who makes Earprint reads it. It isn’t shared, sold or published.</li>
+      <li>Don’t include anything sensitive. To have a message removed, send another one saying which, with the same contact details.</li>
+    </ul>
+  </section>
+</div></main>
+
+<footer class="site-foot"><div class="wrap">
+  <p class="foot-credit">Song previews and artist data from <a class="dz-credit" href="https://www.deezer.com" target="_blank" rel="noopener"><img class="dz-logo on-light" src="/assets/deezer/deezer-logo-black.png" width="714" height="200" alt="Deezer"><img class="dz-logo on-dark" src="/assets/deezer/deezer-logo-white.png" width="714" height="200" alt="Deezer"></a> Earprint is an independent prototype, not affiliated with Deezer.</p>
+  <p><a href="/">How it works</a> · <a href="/lab/">EQ lab</a> · <a href="/about/">Conditions and privacy</a></p>
+</div></footer>
+</body>
+</html>

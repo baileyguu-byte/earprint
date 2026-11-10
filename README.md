@@ -25,9 +25,30 @@ Shape your EQ on the songs you actually play. Earprint plays 30-second song prev
 | `public/assets/demo.js` | The built-in demo loop |
 | `public/assets/deezer/` | Official Deezer logos, unaltered (see below) |
 | `public/assets/fonts/` | Self-hosted fonts and their licences |
-| `wrangler.jsonc` | Cloudflare settings: serves `public/`, custom 404 page, preview links |
+| `public/feedback/index.html` | Feedback form (ideas, bugs, comments); script `public/assets/feedback.js` |
+| `public/sitemap.xml`, `public/assets/og.png`, `public/apple-touch-icon.png` | Sitemap, social share image (1200×630) and home-screen icon |
+| `src/worker.js` | The only server code: `POST /api/feedback` (stores feedback in D1) and `GET /robots.txt` (open on earprint.xyz, closed on preview links). Every other request is a static file and never runs it. |
+| `migrations/0001_feedback.sql` | Schema of the `feedback` table in the `earprint-feedback` D1 database |
+| `wrangler.jsonc` | Cloudflare settings: serves `public/`, the Worker for `/api/*` and `/robots.txt`, the D1 binding, the feedback rate limit, custom 404 page, preview links |
 
 There is no build step: the files in `public/` are served as they are.
+
+## Feedback
+
+Messages from `/feedback/` go to the `earprint-feedback` D1 database (Oceania) on the Cloudflare account. Read them in the Cloudflare dashboard (Storage & databases › D1 › earprint-feedback › Console):
+
+```sql
+SELECT id, created_at, kind, message, contact, page FROM feedback WHERE status = 'new' ORDER BY id DESC;
+UPDATE feedback SET status = 'done' WHERE id = 12;
+```
+
+Spam protection without storing IP addresses: a hidden honeypot field, a minimum time on the page, a same-origin check, Cloudflare's rate limit binding (3 posts a minute per IP, counted in memory) and a cap of 500 messages a day. Preview links write to a separate test database, `earprint-feedback-preview` (Worker Previews don't inherit production bindings, so the `previews` block in `wrangler.jsonc` sets their own).
+
+## Search engines
+
+- `robots.txt` comes from the Worker: it allows crawling on earprint.xyz and points to `sitemap.xml`, and blocks crawling on preview links. Every page has a canonical link to its earprint.xyz address.
+- Every page has a title, description, Open Graph and Twitter tags with `assets/og.png`; the front page has JSON-LD (WebSite and WebApplication).
+- When adding a page, add it to `public/sitemap.xml` and give it the same head tags.
 
 ## Hosting
 
