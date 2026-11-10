@@ -5,9 +5,17 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-11-04",
   "observability": { "enabled": true },
-  // Branch builds get their own *-earprint.<account>.workers.dev link.
+  // Branch builds get their own *-earprint.<account>.workers.dev link. Previews don't inherit
+  // production bindings: they write feedback to a separate test database.
   "preview_urls": true,
-  "previews": {},
+  "previews": {
+    "d1_databases": [
+      { "binding": "DB", "database_name": "earprint-feedback-preview", "database_id": "d932c542-92cc-4493-8744-09438244367b" }
+    ],
+    "ratelimits": [
+      { "name": "FEEDBACK_LIMIT", "namespace_id": "4202", "simple": { "limit": 3, "period": 60 } }
+    ]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

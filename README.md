@@ -42,7 +42,7 @@ SELECT id, created_at, kind, message, contact, page FROM feedback WHERE status =
 UPDATE feedback SET status = 'done' WHERE id = 12;
 ```
 
-Spam protection without storing IP addresses: a hidden honeypot field, a minimum time on the page, a same-origin check, Cloudflare's rate limit binding (3 posts a minute per IP, counted in memory) and a cap of 500 messages a day. Preview links write to the same database; the `site` column says which link a message came from.
+Spam protection without storing IP addresses: a hidden honeypot field, a minimum time on the page, a same-origin check, Cloudflare's rate limit binding (3 posts a minute per IP, counted in memory) and a cap of 500 messages a day. Preview links write to a separate test database, `earprint-feedback-preview` (Worker Previews don't inherit production bindings, so the `previews` block in `wrangler.jsonc` sets their own).
 
 ## Search engines
 
