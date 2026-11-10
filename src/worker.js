@@ -75,7 +75,9 @@ export default {
       if (url.pathname.startsWith('/api/')) return json({ ok: false, error: 'Not found.' }, 404);
     } catch (e) {
       console.error('worker error', url.pathname, e && e.message);
-      return json({ ok: false, error: 'Something went wrong on our side. Please try again later.' }, 500);
+      // Preview links say what failed, to help testing; the real site doesn't.
+      const detail = PRODUCTION.includes(url.hostname) ? undefined : String(e && e.message);
+      return json({ ok: false, error: 'Something went wrong on our side. Please try again later.', detail }, 500);
     }
     return env.ASSETS.fetch(request);
   }
