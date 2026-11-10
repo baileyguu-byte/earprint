@@ -1155,6 +1155,15 @@ function applyFit(dev, sign, opts) {
   const bareNote = bare.length
     ? ' It didn’t fill in ' + bare.map(hz).join(', ').replace(/, ([^,]*)$/, ' and $1') + ': the song has almost nothing there, so a boost would only bring up ' + (bare.every((i) => i <= 3) ? 'rumble' : bare.every((i) => i >= 6) ? 'hiss' : 'noise') + '.'
     : '';
+  if (Math.abs(peak) < 0.5 && state.layout.id !== 'b10') {
+    // A few broad bands can't always make the change: say so, not that the song needs nothing.
+    const g10 = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, L10, 0.5, opts.ref || TYPICAL);
+    const top = g10.map((v, i) => [v, i]).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))[0];
+    if (Math.abs(top[0]) >= 1.5) {
+      setToolMsg('The change ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' would get is narrower than your ' + state.layout.count + ' bands can make: on a 10-band equaliser it would be ' + dbText(top[0]) + ' at ' + hz(top[1]) + ' and smaller moves around it. Nothing changes here.' + bareNote + ' Try a quick fix, or shape it by ear.');
+      return;
+    }
+  }
   if (Math.abs(peak) < 0.5) {
     setToolMsg(sign < 0
       ? opts.subject + ' already sits close to a typical ' + against + (bare.length ? ' where it has something to work with' : '') + ', so evening it out at ' + state.fitStrength + ' strength changes almost nothing.' + bareNote + ' Try Strong, a quick fix, or shape it by ear.'
