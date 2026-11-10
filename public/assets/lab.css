@@ -145,6 +145,8 @@ select.btn { appearance: auto; }
 .dot:hover .dv, .dot.drag .dv { display: block; }
 .dots.slot-B .dot { --slot: var(--b); }
 .is-blind .dots { display: none; }
+.cutnote { margin: 8px var(--gutter) 0 0; }
+.cutnote b { color: var(--ink); font-weight: 600; }
 .bandinfo { margin: 2px var(--gutter) 0 0; font-size: 13px; color: var(--muted); min-height: 2.9em; }
 .bandinfo b { color: var(--ink); font-weight: 600; }
 
