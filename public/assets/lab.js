@@ -2,7 +2,7 @@
 import * as dz from './deezer.js';
 import {
   AC, BANDS, BAND_LABELS, BAND_NAMES, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
-  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F, FILL_FULL, FILL_NONE,
+  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, soundCutoff, tiltDb, fitGains, FIT_AMOUNT, FIT_F, FILL_FULL, FILL_NONE,
   LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep, genreRef, specsResponseDb
 } from './dsp.js';
 import { medianShift, shiftAt, ageLift, ageSummary, ISO_F, AGE_MIN, AGE_MAX, SEXES } from './hearing.js';
@@ -350,6 +350,7 @@ function setTrack(t, autoplay) {
   const was = state.playing;
   if (state.playing) { stopVoice(); state.playing = false; }
   if (t.fp && !t.bal) t.bal = balanceCurve(t.fp.avgDb);
+  if (t.fp && t.cut === undefined) t.cut = soundCutoff(t.fp.avgDb);
   state.track = t;
   state.offset = 0;
   state.loop = null;
@@ -357,7 +358,7 @@ function setTrack(t, autoplay) {
   peaks = null; lastVis = null;
   buildWavePeaks();
   applyLive();
-  renderLevel(); renderNow(); renderLoop(); renderTime(); renderRef(); renderFingerprint(); renderFitAvailability(); renderExport(); renderPlay(); markCurrent(); renderMini(); renderBandInfo();
+  renderLevel(); renderNow(); renderLoop(); renderTime(); renderRef(); renderFingerprint(); renderFitAvailability(); renderExport(); renderPlay(); markCurrent(); renderMini(); renderBandInfo(); renderCutNote();
   drawWave(); scheduleDraw();
   if (autoplay || was) play();
 }
@@ -1826,7 +1827,10 @@ function drawScope(live) {
 
   // The typical song (all music or its genre): the middle half of those songs, with the median dotted.
   if (state.layers.typical) {
-    const tc = refNow().curve, n = tc.med.length;
+    // It stops where the previews it was measured from stop (about 16 kHz), not with a plunge.
+    const tc = refNow().curve;
+    let n = tc.med.length;
+    for (let k = 1; k < tc.med.length; k++) if (typicalF(k) >= 8000 && tc.med[k] < tc.med[k - 1] - 8) { n = k; break; }
     g2.beginPath();
     for (let k = 0; k < n; k++) { const x = G.X(typicalF(k)), y = G.Y(tc.hi[k]); if (k) g2.lineTo(x, y); else g2.moveTo(x, y); }
     for (let k = n - 1; k >= 0; k--) g2.lineTo(G.X(typicalF(k)), G.Y(tc.lo[k]));
@@ -1837,6 +1841,13 @@ function drawScope(live) {
     g2.strokeStyle = rgba(colors['--muted'], 0.9); g2.lineWidth = 1.4 * dpr; g2.stroke();
     g2.setLineDash([]);
   }
+
+  // Where this audio's sound stops (see soundCutoff), a twelfth of an octave early because the
+  // song line is smoothed. The song's own lines end there; the rest is greyed out further down.
+  const cut = state.track && state.track.cut ? state.track.cut / Math.pow(2, 1 / 12) : 0;
+  const cutX = cut ? G.X(cut) : G.plotW;
+  g2.save();
+  g2.beginPath(); g2.rect(0, 0, cutX, H); g2.clip();
 
   // Live sound (after the EQ), filled.
   if (state.layers.spectrum && !blind) {
@@ -1870,6 +1881,7 @@ function drawScope(live) {
     line(G, (i) => CURVE_F[i], bal.db, N_CURVE);
     g2.strokeStyle = rgba(colors['--ink'], 0.78); g2.lineWidth = 1.8 * dpr; g2.lineJoin = 'round'; g2.stroke();
   }
+  g2.restore();
 
   // EQ curves: the other setting dashed, the selected one solid (its dots are draggable elements).
   if (state.layers.curve && !blind) {
@@ -1895,6 +1907,34 @@ function drawScope(live) {
     g2.strokeStyle = colors['--hp']; g2.lineWidth = 2 * dpr; g2.lineJoin = 'round'; g2.stroke();
     g2.setLineDash([]);
   }
+
+  // Above the point where this audio's sound stops (an MP3's cut-off): greyed out and labelled.
+  if (cut && cutX < G.plotW) {
+    const x0 = cutX, w = G.plotW - x0, y0 = G.padT, h = G.plotH;
+    g2.fillStyle = rgba(colors['--well'], 0.8);
+    g2.fillRect(x0, 0, w, H);
+    g2.save();
+    g2.beginPath(); g2.rect(x0, y0, w, h); g2.clip();
+    g2.strokeStyle = rgba(colors['--muted'], 0.16); g2.lineWidth = dpr;
+    g2.beginPath();
+    for (let x = x0 - h; x < G.plotW; x += 7 * dpr) { g2.moveTo(x, y0 + h); g2.lineTo(x + h, y0); }
+    g2.stroke();
+    g2.restore();
+    g2.strokeStyle = rgba(colors['--muted'], 0.5); g2.lineWidth = dpr;
+    g2.setLineDash([3 * dpr, 3 * dpr]);
+    g2.beginPath(); g2.moveTo(Math.round(x0) + 0.5, y0); g2.lineTo(Math.round(x0) + 0.5, y0 + h); g2.stroke();
+    g2.setLineDash([]);
+    const label = state.track.source === 'deezer' ? 'Preview stops here' : 'No sound above here';
+    g2.font = (11 * dpr) + 'px "Instrument Sans", system-ui, sans-serif';
+    if (w >= 15 * dpr && g2.measureText(label).width < h - 12 * dpr) {
+      g2.save();
+      g2.translate(x0 + w / 2, y0 + h / 2); g2.rotate(-Math.PI / 2);
+      g2.textAlign = 'center'; g2.textBaseline = 'middle';
+      g2.fillStyle = colors['--muted'];
+      g2.fillText(label, 0, 0);
+      g2.restore();
+    }
+  }
   g2.restore();
 
   const msg = !state.track ? 'Preparing the demo loop…' : blind ? 'EQ curves are hidden during the blind test. Just listen.' : '';
@@ -1912,6 +1952,17 @@ function drawScope(live) {
     g2.textBaseline = 'alphabetic';
   }
   placeDots();
+}
+
+/** Explains the greyed-out top of the scope, for audio whose sound stops early (soundCutoff). */
+function renderCutNote() {
+  const t = state.track, box = $('cutNote');
+  box.hidden = !(t && t.cut);
+  if (box.hidden) return;
+  const at = 'about ' + fmtF(Math.round(t.cut / 500) * 500);
+  box.innerHTML = t.source === 'deezer'
+    ? '<b>The greyed-out top is where this preview stops.</b> Deezer’s 30-second previews are MP3s, which drop everything above ' + at + ' to save space. The full song goes higher, and your EQ still works there.'
+    : '<b>The greyed-out top is where this audio stops,</b> at ' + at + '. That usually means it was compressed, as an MP3 or similar. A lossless file (WAV, FLAC or ALAC) shows the full range.';
 }
 
 /* Draggable dots on the selected setting's curve */

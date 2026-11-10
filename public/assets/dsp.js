@@ -317,6 +317,29 @@ export async function analyse(buffer) {
  * Returns the curve at CURVE_F and the offset, which also places the live spectrum.
  */
 export const tiltDb = (f) => 10 * Math.log10(f / 1000);
+/**
+ * Where a recording's sound stops, if it stops short: the lowest frequency from 8 kHz up where
+ * the level falls by CUT_DROP dB or more within about a fifth of an octave. Lossy encoders drop
+ * everything above a fixed frequency (Deezer's 30-second MP3 previews stop at about 16 kHz),
+ * while music fades gradually, a few dB per sixth of an octave at most. Returns the frequency in
+ * Hz, or null when the sound carries on to 17 kHz or beyond (the highest the 20 Hz–20 kHz CURVE_F
+ * grid can test), as it does in a lossless file.
+ */
+export const CUT_DROP = 20;
+export function soundCutoff(avgDb) {
+  const n = avgDb.length;
+  const mean = (a, b) => { let s = 0; for (let j = a; j <= b; j++) s += avgDb[j]; return s / (b - a + 1); };
+  for (let i = 4; i < n - 6; i++) {
+    if (CURVE_F[i] < 8000) continue;
+    const below = mean(i - 4, i);
+    if (below - mean(i + 2, i + 6) < CUT_DROP) continue;
+    let j = i;
+    while (j < n - 1 && avgDb[j + 1] > below - 10) j++;
+    return CURVE_F[j];
+  }
+  return null;
+}
+
 export function balanceCurve(avgDb) {
   const raw = Array.from(avgDb, (v, i) => v + tiltDb(CURVE_F[i]));
   // Light smoothing (about a fifth of an octave) so single notes don't read as features.
