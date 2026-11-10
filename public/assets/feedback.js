@@ -66,6 +66,7 @@ form.addEventListener('submit', async (e) => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) throw new Error(data.error || 'It didn’t send (error ' + res.status + ').');
+    setStatus('');
     form.hidden = true;
     $('fbDoneText').textContent = $('fbContact').value.trim()
       ? 'It’s been passed on, and you may get a reply at the contact you left.'
