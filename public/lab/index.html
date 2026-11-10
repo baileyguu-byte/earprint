@@ -221,11 +221,11 @@
           <ul>
             <li><b>Live sound</b> is the song as you hear it, after your setup and EQ.</li>
             <li><b>Song average</b> is the balance of the whole clip before EQ. Where it rises above the shaded band, this song has more energy there than most songs. Where it drops below, less.</li>
-            <li><b>Typical song</b> is the middle half of popular songs measured the same way: songs of the same genre when Earprint knows it, otherwise 128 songs across 16 genres. It’s a reference, not a target.</li>
+            <li><b>Typical song</b> is the middle half of popular songs measured the same way: songs of the same genre when Earprint knows it, otherwise 679 songs across 17 genres. It’s a reference, not a target.</li>
             <li><b>EQ curve</b> shows how much each part of the range is turned up or down. Drag a dot or a fader to change it.</li>
             <li><b>Your setup</b> is the headphone correction and age compensation from the top of the page, when they’re on. They play under every setting, so A and B both get them.</li>
             <li>All of it shares one dB scale, with 0 dB at the song’s average level. Music naturally gets quieter towards the treble; the scope evens that out by 3 dB per octave, so a well-balanced mix looks roughly level.</li>
-            <li><b>Auto fit</b>, below, can set the curve for you. “Even it out” moves the song towards the band. “Bring out its character” lifts the parts where the song has more than most music, so its genre’s traits count too, and never cuts.</li>
+            <li><b>Auto fit</b>, below, can set the curve for you. “Even it out” moves the song towards the band, mostly where it sits outside it, and won’t lift a range the song has almost nothing in. “Bring out its character” lifts the parts where the song has more than most music, so its genre’s traits count too, and never cuts.</li>
           </ul>
         </details>
       </div>
@@ -328,7 +328,7 @@
       <p class="note" id="refNote"></p>
       <div class="chart" id="fpChart"></div>
       <p class="insight" id="fpText">Analysing the song…</p>
-      <p class="note">Bars show how much more or less energy this song has in each octave than the typical song it’s compared with. The grey boxes hold half of those songs, so bars outside them are unusual. The same comparison drives the shaded band on the scope and “Even it out”.</p>
+      <p class="note">Bars show how much more or less energy this song has in each octave than the typical song it’s compared with. The grey boxes hold half of those songs, so bars outside them are unusual. The same comparison drives the shaded band on the scope and auto fit, which acts mostly on the bars outside the boxes.</p>
     </section>
 
     <section class="panel" id="artistsPanel" aria-labelledby="artLabel" tabindex="-1">
