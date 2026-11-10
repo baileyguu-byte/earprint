@@ -1,7 +1,8 @@
 {
-  // Earprint is a static site served by a Cloudflare Worker with static assets.
+  // Earprint: static files in public/ plus a small Worker (src/worker.js) for feedback and robots.txt.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "earprint",
+  "main": "src/worker.js",
   "compatibility_date": "2026-11-04",
   "observability": { "enabled": true },
   // Branch builds get their own *-earprint.<account>.workers.dev link.
@@ -9,7 +10,18 @@
   "previews": {},
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "html_handling": "auto-trailing-slash"
-  }
+    "html_handling": "auto-trailing-slash",
+    // Only these paths run the Worker; every other request is a static file, served directly.
+    "run_worker_first": ["/api/*", "/robots.txt"]
+  },
+  // Feedback messages. Schema: migrations/0001_feedback.sql.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "earprint-feedback", "database_id": "bb24e7d7-2f7e-4ba5-9a4f-8af70e51a30d" }
+  ],
+  // At most 3 feedback posts per minute from one IP address (counted by Cloudflare, not stored).
+  "ratelimits": [
+    { "name": "FEEDBACK_LIMIT", "namespace_id": "4201", "simple": { "limit": 3, "period": 60 } }
+  ]
 }
