@@ -1160,7 +1160,7 @@ function applyFit(dev, sign, opts) {
     const g10 = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, L10, 0.5, opts.ref || TYPICAL);
     const top = g10.map((v, i) => [v, i]).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))[0];
     if (Math.abs(top[0]) >= 1.5) {
-      setToolMsg('The change ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' would get is narrower than your ' + state.layout.count + ' bands can make: on a 10-band equaliser it would be ' + dbText(top[0]) + ' at ' + hz(top[1]) + ' and smaller moves around it. Nothing changes here.' + bareNote + ' Try a quick fix, or shape it by ear.');
+      setToolMsg('The change ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' would get is narrower than your ' + state.layout.count + ' bands can make: on a 10-band equaliser it would be ' + dbText(top[0]) + ' at ' + hz(top[1]) + (g10.filter((v) => v !== 0).length > 1 ? ' with smaller moves around it' : '') + '. Nothing changes here.' + bareNote + ' Try a quick fix, or shape it by ear.');
       return;
     }
   }
@@ -1323,8 +1323,10 @@ function renderFingerprint() {
   renderBalance(box, dev, ref);
   const { text, more } = balanceSentence(dev, 'this song', ref);
   let tail = '';
-  if (more.length) {
-    const top = more[0][1];
+  // The 32 Hz and 16 kHz bands vary too much between songs to say what carries this one.
+  const core = more.filter(([, i]) => i >= 1 && i <= 8);
+  if (core.length) {
+    const top = core[0][1];
     tail = top <= 2 ? ' Its low end carries a lot of the song, so headphones that are weak in the bass will change it the most.'
       : top >= 7 ? ' Its treble stands out, so headphones with a sharp or dull top end will change it the most.'
         : ' Its midrange stands out, so headphones with an uneven midrange will change it the most.';
