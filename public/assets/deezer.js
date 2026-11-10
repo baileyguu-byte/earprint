@@ -57,6 +57,18 @@ export const searchArtists = (q, limit = 10) => cached('/search/artist?q=' + enc
 export const searchTracks = (q, limit = 20) => cached('/search?q=' + enc(q) + '&limit=' + limit, 5 * MIN).then((r) => r.data || []);
 export const artist = (id) => cached('/artist/' + id, 10 * MIN);
 export const artistTop = (id, limit = 10) => cached('/artist/' + id + '/top?limit=' + limit, 10 * MIN).then((r) => r.data || []);
+/**
+ * The genre most of an artist's albums share, for songs whose own album has none. Only genres
+ * that pass known() count, and the answer needs at least 3 albums and 60% of the counted ones,
+ * so an artist spread across genres gets no guess (null).
+ */
+export const artistGenre = (id, known = () => true) => cached('/artist/' + id + '/albums?limit=50', 60 * MIN).then((r) => {
+  const n = {};
+  let total = 0;
+  (r.data || []).forEach((a) => { if (known(a.genre_id)) { n[a.genre_id] = (n[a.genre_id] || 0) + 1; total++; } });
+  const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+  return top && n[top] >= 3 && n[top] >= 0.6 * total ? Number(top) : null;
+});
 export const genreChart = (id, limit = 50) => cached('/chart/' + id + '/tracks?limit=' + limit, 10 * MIN).then((r) => r.data || []);
 /** Always fresh: preview links expire after roughly 15 minutes. */
 export const track = (id) => call('/track/' + id);

@@ -50,6 +50,19 @@ Spam protection without storing IP addresses: a hidden honeypot field, a minimum
 - Every page has a title, description, Open Graph and Twitter tags with `assets/og.png`; the front page has JSON-LD (WebSite and WebApplication).
 - When adding a page, add it to `public/sitemap.xml` and give it the same head tags.
 
+## How auto fit decides
+
+`fitTargets` in `dsp.js` turns "how this song differs from a typical one" into a curve. Four rules, set by an audit in November 2026 that ran both fits over 739 previews:
+
+- **Ordinary differences count for little.** A difference is scaled by how unusual it is for that band (half strength at the edge of the range that holds half of all songs, nearly full beyond twice that). The two halves of one 30-second preview differ by 1 to 1.4 dB per band, so anything finer is chance.
+- **Nothing is boosted where there's nothing to boost.** "Even it out" fades its lift out from 6 dB under typical and gives none at 12 dB under. Before, 22% of songs got 3 dB or more of lift in a band that was all but empty (a piano ballad's sub-bass, a 1930s recording's treble).
+- **Neighbouring bands stay within 6 dB of each other.**
+- **The comparison is centred on the bands that carry loudness** (`vsTypical`), so a song with no bass doesn't read as too strong everywhere else.
+
+`analyse` measures left and right separately. Mixed to mono first, 19% of songs read at least 1 dB too dark in the top two octaves, a few by 8 dB.
+
+To check a change, run a known fault through it: take a song that sits on the typical curve, add a 5 dB peak at 3 kHz, and "Even it out" should answer with about −3 dB at 4 kHz, −1 dB at 2 kHz and nothing else.
+
 ## Hosting
 
 Deployed on Cloudflare from this repository.
@@ -60,8 +73,9 @@ Deployed on Cloudflare from this repository.
 ## Data sources
 
 - Song previews, artist and genre data: Deezer's public API, called from the visitor's browser.
-- The typical song (`TYPICAL` in `dsp.js`): 128 previews, 8 from each of 16 Deezer charts, measured with the lab's own analysis in November 2026. Only the medians and quartiles are kept.
-- Typical songs per genre (`GENRE_TYPICAL` in `dsp.js`): the top 12 previews on each of 17 Deezer genre charts, measured the same way in November 2026. The lab finds a song's genre from its album on Deezer. "Even it out" and the song chart use the genre by default; "Bring out its character" always compares with all music, so a genre's own traits count as character.
+- Typical songs per genre (`GENRE_TYPICAL` in `dsp.js`): the 40 highest songs with previews on each of 17 Deezer genre charts (at most two per artist), measured with the lab's own analysis in November 2026. Only the medians and quartiles are kept. Songs that clearly aren't the genre are left out by hand: Deezer's classical chart opens with Christmas pop every November. The lab finds a song's genre from its album on Deezer, or from the artist's other albums when the album has none. "Even it out" and the song chart use the genre by default; "Bring out its character" always compares with all music, so a genre's own traits count as character.
+- The typical song (`TYPICAL` in `dsp.js`): the same 679 songs, pooled.
+- Re-measuring: both tables must be measured with the site's own `analyse()`, in a browser, because Deezer previews can't be fetched from elsewhere. `analyse()` measures the left and right channels separately and averages their power, so numbers taken with any other method (a mono mix reads wide mixes up to 8 dB too dark in the top octaves) are not comparable.
 - Headphone corrections: [AutoEq](https://github.com/jaakkopasanen/AutoEq) (MIT licence, copy in `public/assets/autoeq/LICENSE.txt`), its recommended result per model (`results/README.md`, one measurement per model from the most accurate source) at commit 7ae0f56 (July 2025). Each is a ten-filter parametric EQ towards the Harman over-ear target, AutoEq's in-ear target or a rig-specific version. Served from this site, so the lab never contacts AutoEq or GitHub. To update: shallow-clone AutoEq (a blob-less partial clone with a sparse checkout of `results/**/*ParametricEQ.txt` and `results/README.md` is enough), then run `python3 -I tools/autoeq_build.py <autoeq checkout> public/assets/autoeq <commit> <date>`.
 - Hearing and age: ISO 7029:2017 Formula (1) and Table 1 (median threshold change from age 18, by sex, 125 Hz–8 kHz, ages 18–80). The lab's compensation gives back a third (Gentle) or half (Stronger) of the change above the 500 Hz–1 kHz level, eased above 8 kHz and capped at +6 dB, played as four high shelves and a 16 kHz dip.
 - Export formats were checked against each app's documentation (Equalizer APO configuration reference, Wavelet's import format). With your setup on, fixed-band exports are fitted to setting + correction + age lift; Equalizer APO gets the exact filters and Wavelet the exact curve; the car and speaker export leaves out the headphone correction.

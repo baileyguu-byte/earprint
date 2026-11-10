@@ -2,7 +2,7 @@
 import * as dz from './deezer.js';
 import {
   AC, BANDS, BAND_LABELS, BAND_NAMES, RANGE, SOFT, GUIDE, PRESETS, N_CURVE, CURVE_F, TYPICAL, typicalF, vsTypical,
-  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F,
+  responseDb, kWeight, meanPower, decode, analyse, balanceCurve, tiltDb, fitGains, FIT_AMOUNT, FIT_F, FILL_FULL, FILL_NONE,
   LAYOUTS, L10, layoutById, bandLabel, bandHz, convertGains, fitLayout, roundStep, genreRef, specsResponseDb
 } from './dsp.js';
 import { medianShift, shiftAt, ageLift, ageSummary, ISO_F, AGE_MIN, AGE_MAX, SEXES } from './hearing.js';
@@ -372,7 +372,10 @@ async function playDeezerTrack(t) {
     if (fresh.readable === false) throw new Error('Deezer doesn’t offer this song in your country.');
     if (!fresh.preview) throw new Error('Deezer has no preview for this song.');
     // The album's genre picks the typical song to compare with (if Earprint has measured it).
-    const genreP = fresh.album && fresh.album.id ? dz.call('/album/' + fresh.album.id).then((a) => a.genre_id).catch(() => null) : Promise.resolve(null);
+    // Many albums (compilations, older releases) have no genre on Deezer, or a sub-genre Earprint
+    // hasn't measured; then the genre most of the artist's other albums share stands in.
+    const genreP = (fresh.album && fresh.album.id ? dz.call('/album/' + fresh.album.id).then((a) => a.genre_id).catch(() => null) : Promise.resolve(null))
+      .then((id) => (genreRef(id) || !fresh.artist ? id : dz.artistGenre(fresh.artist.id, (g) => !!genreRef(g)).catch(() => id)));
     // Previews are streamed into memory only: never cached, stored or offered as a download.
     const res = await fetch(fresh.preview, { cache: 'no-store' });
     if (!res.ok) throw new Error('The preview server returned an error (' + res.status + ').');
@@ -1143,12 +1146,27 @@ function renderFitAvailability() {
 function applyFit(dev, sign, opts) {
   const cap = Math.min(GUIDE, limitNow());
   const dir = sign < 0 ? 'even' : 'boost';
-  const g = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, state.layout, state.step);
+  const g = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, state.layout, state.step, opts.ref || TYPICAL);
   const { peak, at } = peakChange(g);
   const against = opts.against || 'song';
+  // Say which ranges "even it out" declined to lift (see fitTargets in dsp.js), so a missing
+  // bass or treble lift reads as a decision and not as an oversight.
+  const bare = sign < 0 ? dev.map((d, i) => (d <= -(FILL_FULL + 3 * FILL_NONE) / 4 ? i : -1)).filter((i) => i >= 0) : [];
+  const bareNote = bare.length
+    ? ' It didn’t fill in ' + bare.map(hz).join(', ').replace(/, ([^,]*)$/, ' and $1') + ': the song has almost nothing there, so a boost would only bring up ' + (bare.every((i) => i <= 3) ? 'rumble' : bare.every((i) => i >= 6) ? 'hiss' : 'noise') + '.'
+    : '';
+  if (Math.abs(peak) < 0.5 && state.layout.id !== 'b10') {
+    // A few broad bands can't always make the change: say so, not that the song needs nothing.
+    const g10 = fitGains(dev, sign, FIT_AMOUNT[dir][state.fitStrength], cap, L10, 0.5, opts.ref || TYPICAL);
+    const top = g10.map((v, i) => [v, i]).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]))[0];
+    if (Math.abs(top[0]) >= 1.5) {
+      setToolMsg('The change ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' would get is narrower than your ' + state.layout.count + ' bands can make: on a 10-band equaliser it would be ' + dbText(top[0]) + ' at ' + hz(top[1]) + (g10.filter((v) => v !== 0).length > 1 ? ' with smaller moves around it' : '') + '. Nothing changes here.' + bareNote + ' Try a quick fix, or shape it by ear.');
+      return;
+    }
+  }
   if (Math.abs(peak) < 0.5) {
     setToolMsg(sign < 0
-      ? opts.subject + ' already sits close to a typical ' + against + ', so evening it out at ' + state.fitStrength + ' strength changes almost nothing. Try Strong, a quick fix, or shape it by ear.'
+      ? opts.subject + ' already sits close to a typical ' + against + (bare.length ? ' where it has something to work with' : '') + ', so evening it out at ' + state.fitStrength + ' strength changes almost nothing.' + bareNote + ' Try Strong, a quick fix, or shape it by ear.'
       : 'Nothing in ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' stands out above a typical ' + against + ', so there’s nothing to lift. Try “Even it out”, a quick fix, or shape it by ear.');
     return;
   }
@@ -1159,7 +1177,7 @@ function applyFit(dev, sign, opts) {
       ? ' That’s because ' + opts.subject.replace(/^./, (c) => c.toLowerCase()) + ' is already close to a typical ' + against + '. For a bigger difference, try Strong or “Bring out its character”.'
       : ' For a bigger difference, try Strong.';
   }
-  setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. The biggest change is ' + dbText(roundStep(peak, 0.5)) + ' around ' + fmtF(at) + ', which is ' + audibility(peak) + '.' + tail + ' Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
+  setToolMsg('Setting ' + state.active + ' now ' + opts.verb + ': ' + describeGains(g) + '. The biggest change is ' + dbText(roundStep(peak, 0.5)) + ' around ' + fmtF(at) + ', which is ' + audibility(peak) + '.' + bareNote + tail + ' Press X or “Switch A and B” to compare it with ' + (state.active === 'A' ? 'B' : 'A') + '.');
 }
 function fitSong(sign) {
   const t = state.track;
@@ -1169,6 +1187,7 @@ function fitSong(sign) {
   // band like Animals as Leaders only got its low end lifted, not the guitar bite it shares with metal.
   const ref = sign > 0 ? TYPICAL : refNow();
   applyFit(vsTypical(t.fp.rel, ref), sign, {
+    ref,
     against: ref.noun,
     subject: '“' + t.title + '”',
     name: sign < 0 ? 'Evened out' : 'Its character',
@@ -1267,7 +1286,7 @@ function renderRef() {
   $('fpRefName').textContent = ref.noun;
   $('lgTypName').textContent = 'Typical ' + ref.noun;
   $('refNote').textContent = ref === TYPICAL
-    ? (state.ref === 'genre' && state.track && state.track.source === 'deezer' ? 'Earprint hasn’t measured this song’s genre, so it’s compared with all music: 128 popular songs from 16 genres.' : 'Compared with all music: 128 popular songs from 16 genres.')
+    ? (state.ref === 'genre' && state.track && state.track.source === 'deezer' ? 'Earprint doesn’t know this song’s genre, so it’s compared with all music: ' + TYPICAL.songs + ' popular songs from 17 genres.' : 'Compared with all music: ' + TYPICAL.songs + ' popular songs from 17 genres.')
     : 'Compared with ' + ref.songs + ' popular ' + ref.noun + 's, so the song is judged against its own kind of music. “Bring out its character” still compares with all music, so its genre’s traits count too.';
 }
 function setRef(r) {
@@ -1304,8 +1323,10 @@ function renderFingerprint() {
   renderBalance(box, dev, ref);
   const { text, more } = balanceSentence(dev, 'this song', ref);
   let tail = '';
-  if (more.length) {
-    const top = more[0][1];
+  // The 32 Hz and 16 kHz bands vary too much between songs to say what carries this one.
+  const core = more.filter(([, i]) => i >= 1 && i <= 8);
+  if (core.length) {
+    const top = core[0][1];
     tail = top <= 2 ? ' Its low end carries a lot of the song, so headphones that are weak in the bass will change it the most.'
       : top >= 7 ? ' Its treble stands out, so headphones with a sharp or dull top end will change it the most.'
         : ' Its midrange stands out, so headphones with an uneven midrange will change it the most.';
@@ -1316,11 +1337,14 @@ function renderFingerprint() {
 
 /* ---------- Your artists’ sound ---------- */
 const PER_ARTIST = 4;
-const loadAfp = () => { const c = store.get('afp', {}); return c && typeof c === 'object' ? c : {}; };
+// 'afp2': measurements from before November 2026 mixed the channels to mono first (see analyse()
+// in dsp.js), so they aren't comparable with the current typical songs and are dropped.
+try { localStorage.removeItem('earprint:afp'); } catch (e) {}
+const loadAfp = () => { const c = store.get('afp2', {}); return c && typeof c === 'object' ? c : {}; };
 function saveAfp(cache) {
   const keys = Object.keys(cache);
   if (keys.length > 160) keys.sort((a, b) => (cache[b].t || 0) - (cache[a].t || 0)).slice(160).forEach((k) => delete cache[k]);
-  store.set('afp', cache);
+  store.set('afp2', cache);
 }
 function artistRels(id, cache) {
   return Object.values(cache).filter((e) => e && e.a === id && Array.isArray(e.r) && e.r.length === 10).sort((p, q) => (q.t || 0) - (p.t || 0)).slice(0, PER_ARTIST).map((e) => e.r);
